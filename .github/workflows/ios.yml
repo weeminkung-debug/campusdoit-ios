@@ -20,14 +20,6 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ios/App/Pods
-            ~/Library/Caches/CocoaPods
-            ~/Library/Developer/Xcode/DerivedData
-          key: ios-${{ runner.os }}-${{ hashFiles('ios/App/Podfile.lock') }}
-          restore-keys: ios-${{ runner.os }}-
       - run: test -d ios || npx cap add ios
       - run: npx cap sync ios
       - uses: maxim-lobanov/setup-xcode@v1
@@ -47,7 +39,9 @@ jobs:
           mkdir -p ios/App/fastlane
           cp fastlane/Fastfile ios/App/fastlane/
           cp fastlane/Appfile ios/App/fastlane/ || true
-      - name: Set development team
+      - name: Build & upload (fastlane)
         run: |
+          gem install fastlane -N
           cd ios/App
-          sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = com.campusdoit.app;/PRODUCT_BUNDLE_IDENTIFIER =
+          fastlane run update_code_signing_settings use_automatic_signing:false path:"App.xcodeproj" team_id:"885CWQ465B" targets:"App"
+          fastlane ios beta
