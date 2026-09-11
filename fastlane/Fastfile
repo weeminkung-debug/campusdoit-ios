@@ -2,8 +2,7 @@ default_platform(:ios)
 
 TEAM_ID = ENV["TEAM_ID"] || "885CWQ465B"
 APP_ID  = ENV["APP_ID"]  || "com.campusdoit.app"
-# 워크플로는 저장소 루트에서 fastlane을 실행한다. iOS 프로젝트는 ios/App 하위.
-IOS_DIR = File.expand_path("../ios/App", __dir__)
+IOS_DIR = File.expand_path("../ios/App", __dir__)   # 저장소 루트/fastlane 기준 → ios/App
 
 platform :ios do
   desc "TestFlight 업로드 (CI 비대화)"
@@ -15,9 +14,8 @@ platform :ios do
       in_house: false
     )
 
-    setup_ci(keychain_name: ENV["KEYCHAIN_PATH"], keychain_password: "ci") if ENV["CI"]
-
-    profile = sigh(
+    # 키체인은 워크플로에서 생성·임포트·unlock·default 지정 완료 → setup_ci 미사용
+    profile_path = sigh(
       api_key: api_key,
       app_identifier: APP_ID,
       team_id: TEAM_ID,
@@ -26,7 +24,8 @@ platform :ios do
       skip_certificate_verification: true,
       output_path: "#{IOS_DIR}/profiles"
     )
-    profile_name = lane_context[SharedValues::SIGH_NAME] || profile
+    profile_name = lane_context[SharedValues::SIGH_NAME]
+    install_provisioning_profile(path: profile_path)
 
     update_code_signing_settings(
       path: "#{IOS_DIR}/App.xcodeproj",
@@ -35,6 +34,7 @@ platform :ios do
       targets: ["App"],
       bundle_identifier: APP_ID,
       code_sign_identity: "Apple Distribution",
+      sdk: "iphoneos*",
       profile_name: profile_name
     )
 
@@ -51,7 +51,7 @@ platform :ios do
       clean: false,
       output_directory: "#{IOS_DIR}/build",
       export_team_id: TEAM_ID,
-      xcargs: "-allowProvisioningUpdates DEVELOPMENT_TEAM=#{TEAM_ID} CODE_SIGN_STYLE=Manual",
+      xcargs: "DEVELOPMENT_TEAM=#{TEAM_ID} CODE_SIGN_STYLE=Manual",
       export_options: {
         method: "app-store",
         teamID: TEAM_ID,
