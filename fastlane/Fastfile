@@ -1,11 +1,70 @@
 default_platform(:ios)
+
+TEAM_ID = ENV["TEAM_ID"] || "885CWQ465B"
+APP_ID  = ENV["APP_ID"]  || "com.campusdoit.app"
+# 워크플로는 저장소 루트에서 fastlane을 실행한다. iOS 프로젝트는 ios/App 하위.
+IOS_DIR = File.expand_path("../ios/App", __dir__)
+
 platform :ios do
-  desc "TestFlight 업로드"
+  desc "TestFlight 업로드 (CI 비대화)"
   lane :beta do
-    api_key = app_store_connect_api_key(key_id: ENV["ASC_KEY_ID"], issuer_id: ENV["ASC_ISSUER_ID"], key_filepath: "../../AuthKey.p8")
-    sigh(api_key: api_key, app_identifier: "com.campusdoit.app", readonly: false)   # 프로비저닝 자동 발급/갱신
-    increment_build_number(build_number: ENV["GITHUB_RUN_NUMBER"] || "1")
-    build_app(workspace: "App.xcworkspace", scheme: "App", export_method: "app-store", clean: false)
-    pilot(api_key: api_key, skip_waiting_for_build_processing: true)
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_filepath: ENV.fetch("ASC_KEY_PATH"),
+      in_house: false
+    )
+
+    setup_ci(keychain_name: ENV["KEYCHAIN_PATH"], keychain_password: "ci") if ENV["CI"]
+
+    profile = sigh(
+      api_key: api_key,
+      app_identifier: APP_ID,
+      team_id: TEAM_ID,
+      platform: "ios",
+      readonly: false,
+      skip_certificate_verification: true,
+      output_path: "#{IOS_DIR}/profiles"
+    )
+    profile_name = lane_context[SharedValues::SIGH_NAME] || profile
+
+    update_code_signing_settings(
+      path: "#{IOS_DIR}/App.xcodeproj",
+      use_automatic_signing: false,
+      team_id: TEAM_ID,
+      targets: ["App"],
+      bundle_identifier: APP_ID,
+      code_sign_identity: "Apple Distribution",
+      profile_name: profile_name
+    )
+
+    increment_build_number(
+      xcodeproj: "#{IOS_DIR}/App.xcodeproj",
+      build_number: (ENV["GITHUB_RUN_NUMBER"] || Time.now.to_i.to_s)
+    )
+
+    build_app(
+      workspace: "#{IOS_DIR}/App.xcworkspace",
+      scheme: "App",
+      configuration: "Release",
+      export_method: "app-store",
+      clean: false,
+      output_directory: "#{IOS_DIR}/build",
+      export_team_id: TEAM_ID,
+      xcargs: "-allowProvisioningUpdates DEVELOPMENT_TEAM=#{TEAM_ID} CODE_SIGN_STYLE=Manual",
+      export_options: {
+        method: "app-store",
+        teamID: TEAM_ID,
+        signingStyle: "manual",
+        provisioningProfiles: { APP_ID => profile_name }
+      }
+    )
+
+    pilot(
+      api_key: api_key,
+      app_identifier: APP_ID,
+      skip_waiting_for_build_processing: true,
+      skip_submission: true
+    )
   end
 end
