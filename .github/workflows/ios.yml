@@ -42,7 +42,11 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k ci build.keychain
       - name: ASC API key
         run: echo "$ASC_KEY_P8_B64" | base64 --decode > AuthKey.p8
+      - name: Copy fastlane into ios/App
+        run: |
+          mkdir -p ios/App/fastlane
+          cp fastlane/Fastfile fastlane/Appfile ios/App/fastlane/ 2>/dev/null || cp fastlane/Fastfile ios/App/fastlane/
       - name: Build & upload (fastlane)
         run: |
           gem install fastlane -N
-          fastlane ios beta
+          cd ios/App && fastlane ios beta
