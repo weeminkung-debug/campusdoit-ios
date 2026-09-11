@@ -1,0 +1,19 @@
+workflows:
+  ios-workflow:
+    name: iOS TestFlight (대체 경로)
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    integrations: { app_store_connect: campusdoit_asc_key }   # Codemagic Team settings에 API 키 등록명
+    environment:
+      xcode: latest
+      node: 20
+      ios_signing: { distribution_type: app_store, bundle_identifier: com.campusdoit.app }
+    cache: { cache_paths: [ $HOME/Library/Caches/CocoaPods, node_modules ] }
+    scripts:
+      - npm ci
+      - test -d ios || npx cap add ios
+      - npx cap sync ios
+      - xcode-project use-profiles
+      - xcode-project build-ipa --workspace ios/App/App.xcworkspace --scheme App
+    artifacts: [ build/ios/ipa/*.ipa ]
+    publishing: { app_store_connect: { auth: integration, submit_to_testflight: true } }
