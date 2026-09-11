@@ -1,0 +1,64 @@
+name: iOS TestFlight
+on:
+  push: { tags: ['ios-v*'] }
+  workflow_dispatch: {}
+concurrency: { group: ios-build, cancel-in-progress: true }
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+    env:
+      FASTLANE_SKIP_UPDATE_CHECK: "1"
+      FASTLANE_HIDE_CHANGELOG: "1"
+      FASTLANE_DISABLE_COLORS: "1"
+      CI: "true"
+      TEAM_ID: "885CWQ465B"
+      APP_ID: "com.campusdoit.app"
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_B64: ${{ secrets.ASC_KEY_P8_B64 }}
+      IOS_CERT_P12_B64: ${{ secrets.IOS_CERT_P12_B64 }}
+      IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Add & sync iOS
+        run: |
+          test -d ios || npx cap add ios
+          npx cap sync ios
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ios/App/Pods
+            ~/Library/Caches/CocoaPods
+          key: pods-${{ hashFiles('ios/App/Podfile.lock') }}
+          restore-keys: pods-
+      - name: Import distribution certificate
+        run: |
+          echo "$IOS_CERT_P12_B64" | base64 --decode > $RUNNER_TEMP/cert.p12
+          security create-keychain -p ci $RUNNER_TEMP/build.keychain
+          security set-keychain-settings -lut 21600 $RUNNER_TEMP/build.keychain
+          security default-keychain -s $RUNNER_TEMP/build.keychain
+          security unlock-keychain -p ci $RUNNER_TEMP/build.keychain
+          security import $RUNNER_TEMP/cert.p12 -k $RUNNER_TEMP/build.keychain -P "$IOS_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci $RUNNER_TEMP/build.keychain
+          security list-keychains -d user -s $RUNNER_TEMP/build.keychain login.keychain-db
+      - name: Write App Store Connect API key
+        run: echo "$ASC_KEY_P8_B64" | base64 --decode > $RUNNER_TEMP/AuthKey.p8
+      - name: Build & upload to TestFlight
+        env:
+          ASC_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
+          KEYCHAIN_PATH: ${{ runner.temp }}/build.keychain
+        run: bundle exec fastlane ios beta || (gem install fastlane -N -v 2.222.0 && fastlane ios beta)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-logs
+          path: |
+            ~/Library/Logs/gym
+            ~/Library/Logs/fastlane
+          if-no-files-found: ignore
