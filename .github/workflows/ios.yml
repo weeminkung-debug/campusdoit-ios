@@ -13,6 +13,8 @@ jobs:
       ASC_KEY_P8_B64: ${{ secrets.ASC_KEY_P8_B64 }}
       IOS_CERT_P12_B64: ${{ secrets.IOS_CERT_P12_B64 }}
       IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+      FASTLANE_SKIP_UPDATE_CHECK: "1"
+      FASTLANE_HIDE_CHANGELOG: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,4 +45,4 @@ jobs:
       - name: Build & upload (fastlane)
         run: |
           gem install fastlane -N
-          cd ios/App && fastlane ios beta
+          fastlane ios beta
