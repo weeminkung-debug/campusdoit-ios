@@ -34,6 +34,11 @@ jobs:
         run: |
           test -d ios || npx cap add ios
           npx cap sync ios
+      - name: Export compliance (exempt) into Info.plist
+        run: |
+          /usr/libexec/PlistBuddy -c "Delete :ITSAppUsesNonExemptEncryption" ios/App/App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Print :ITSAppUsesNonExemptEncryption" ios/App/App/Info.plist
       - uses: actions/cache@v4
         with:
           path: |
