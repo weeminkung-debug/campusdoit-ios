@@ -1,0 +1,8 @@
+{
+  "appId": "com.campusdoit.app",
+  "appName": "캠퍼스두잇",
+  "webDir": "www",
+  "server": { "androidScheme": "https", "iosScheme": "https" },
+  "ios": { "contentInset": "automatic", "scheme": "CampusDoIt", "limitsNavigationsToAppBoundDomains": false },
+  "plugins": { "LocalNotifications": { "smallIcon": "ic_stat_campusdoit", "iconColor": "#2B5BC4" } }
+}
