@@ -6,7 +6,7 @@ concurrency: { group: ios-build, cancel-in-progress: true }
 jobs:
   build:
     runs-on: macos-14
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -45,8 +45,9 @@ jobs:
       - name: Copy fastlane into ios/App
         run: |
           mkdir -p ios/App/fastlane
-          cp fastlane/Fastfile fastlane/Appfile ios/App/fastlane/ 2>/dev/null || cp fastlane/Fastfile ios/App/fastlane/
-      - name: Build & upload (fastlane)
+          cp fastlane/Fastfile ios/App/fastlane/
+          cp fastlane/Appfile ios/App/fastlane/ || true
+      - name: Set development team
         run: |
-          gem install fastlane -N
-          cd ios/App && fastlane ios beta
+          cd ios/App
+          sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = com.campusdoit.app;/PRODUCT_BUNDLE_IDENTIFIER =
