@@ -34,6 +34,8 @@ jobs:
         run: |
           test -d ios || npx cap add ios
           npx cap sync ios
+      - name: App icon 1024 into Assets
+        run: cp resources/AppIcon-1024.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
       - name: Export compliance (exempt) into Info.plist
         run: |
           /usr/libexec/PlistBuddy -c "Delete :ITSAppUsesNonExemptEncryption" ios/App/App/Info.plist 2>/dev/null || true
@@ -41,11 +43,14 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :ITSAppUsesNonExemptEncryption" ios/App/App/Info.plist
       - uses: actions/cache@v4
         with:
-          path: |
-            ios/App/Pods
-            ~/Library/Caches/CocoaPods
-          key: pods-${{ hashFiles('ios/App/Podfile.lock') }}
-          restore-keys: pods-
+          path: ~/Library/Caches/CocoaPods
+          key: cocoapods-cache-${{ hashFiles('ios/App/Podfile') }}
+          restore-keys: cocoapods-cache-
+      - name: pod install (Podfile.lock ↔ Manifest.lock 동기)
+        run: |
+          cd ios/App
+          pod install --repo-update
+          diff Podfile.lock Pods/Manifest.lock && echo "Pods in sync"
       - name: Import distribution certificate
         run: |
           echo "$IOS_CERT_P12_B64" | base64 --decode > $RUNNER_TEMP/cert.p12
