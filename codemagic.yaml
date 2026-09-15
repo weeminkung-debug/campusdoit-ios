@@ -6,7 +6,7 @@ workflows:
     integrations: { app_store_connect: campusdoit_asc_key }   # Codemagic Team settings에 API 키 등록명
     environment:
       xcode: latest
-      node: 20
+      node: 22
       ios_signing: { distribution_type: app_store, bundle_identifier: com.campusdoit.app }
     cache: { cache_paths: [ $HOME/Library/Caches/CocoaPods, node_modules ] }
     scripts:

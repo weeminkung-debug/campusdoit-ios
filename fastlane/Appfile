@@ -1,1 +1,2 @@
-app_identifier("com.campusdoit.app")
+app_identifier(ENV["APP_ID"] || "com.campusdoit.app")
+team_id(ENV["TEAM_ID"] || "885CWQ465B")
