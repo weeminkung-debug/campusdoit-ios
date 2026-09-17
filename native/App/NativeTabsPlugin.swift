@@ -52,6 +52,13 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
             tabBar.bottomAnchor.constraint(equalTo: host.bottomAnchor)   // 홈 인디케이터 영역은 UITabBar가 내부 처리
         ])
         host.layoutIfNeeded()
+        // 브리지가 이후에 WKWebView를 addSubview 하면 탭바가 뒤로 가림 → 지연 재전면(스모크 실측: 웹 여백은 적용, 탭바 비가시)
+        [0.2, 0.8, 1.6, 3.0].forEach { d in
+            DispatchQueue.main.asyncAfter(deadline: .now() + d) { [weak self] in
+                guard let self = self, let h = self.bridge?.viewController?.view else { return }
+                h.bringSubviewToFront(self.tabBar)
+            }
+        }
         // 웹 하단 여백: 탭바 본체 높이(49)를 세이프에어리어에 가산 → env(safe-area-inset-bottom)로 전달
         let barHeight: CGFloat = 49
         vc.additionalSafeAreaInsets = UIEdgeInsets(top: 0, left: 0, bottom: barHeight, right: 0)
@@ -65,6 +72,7 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
 
     private func select(_ key: String) {
         guard let i = tabs.firstIndex(where: { $0.key == key }) else { return }
+        bridge?.viewController?.view.bringSubviewToFront(tabBar)
         tabBar.selectedItem = tabBar.items?[i]
         bridge?.webView?.evaluateJavaScript("window.__nativeTab && window.__nativeTab('\(key)')", completionHandler: nil)
     }
