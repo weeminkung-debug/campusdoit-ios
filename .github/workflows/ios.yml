@@ -84,11 +84,46 @@ jobs:
           xcrun simctl install "$UDID" "$APP"
           mkdir -p smoke
           xcrun simctl launch "$UDID" com.campusdoit.app; sleep 8
-          xcrun simctl io "$UDID" screenshot smoke/01_home.png
+          xcrun simctl io "$UDID" screenshot smoke/01_home_8s.png
+          sleep 7
+          xcrun simctl io "$UDID" screenshot smoke/01_home_15s.png
           xcrun simctl terminate "$UDID" com.campusdoit.app || true
           xcrun simctl launch "$UDID" com.campusdoit.app -smokeTab sched; sleep 9
           xcrun simctl io "$UDID" screenshot smoke/02_sched_tab.png
           if xcrun simctl spawn "$UDID" launchctl list | grep -q "com.campusdoit.app"; then echo "ALIVE"; else echo "PROCESS DEAD"; exit 1; fi
+          # 탭바 픽셀 검증: 하단 140pt 영역에 코발트 계열 픽셀(활성 탭 아이콘) ≥300(탭바 없음 실측 60·있음 1027) — 3장 전부, 없으면 업로드 차단
+          python3 - <<'PY'
+          import struct, zlib, sys, glob
+          def png_rgb(path):
+              d=open(path,'rb').read(); pos=8; w=h=0; idat=b''
+              while pos<len(d):
+                  ln=struct.unpack('>I',d[pos:pos+4])[0]; t=d[pos+4:pos+8]; c=d[pos+8:pos+8+ln]; pos+=12+ln
+                  if t==b'IHDR': w,h,bd,ct=struct.unpack('>IIBB',c[:10])
+                  elif t==b'IDAT': idat+=c
+                  elif t==b'IEND': break
+              raw=zlib.decompress(idat); bpp=4 if ct==6 else 3; stride=w*bpp; out=bytearray(); prev=bytearray(stride); p=0
+              for y in range(h):
+                  f=raw[p]; p+=1; line=bytearray(raw[p:p+stride]); p+=stride
+                  for i in range(stride):
+                      a=line[i-bpp] if i>=bpp else 0; b=prev[i]; c=prev[i-bpp] if i>=bpp else 0
+                      if f==1: line[i]=(line[i]+a)&255
+                      elif f==2: line[i]=(line[i]+b)&255
+                      elif f==3: line[i]=(line[i]+((a+b)>>1))&255
+                      elif f==4:
+                          pa=abs(b-c); pb=abs(a-c); pc=abs(a+b-2*c); pr=a if pa<=pb and pa<=pc else (b if pb<=pc else c); line[i]=(line[i]+pr)&255
+                  out+=line; prev=line
+              return w,h,bpp,bytes(out)
+          ok=True
+          for f in sorted(glob.glob('smoke/*.png')):
+              w,h,bpp,px=png_rgb(f); scale=3 if h>2400 else 2; y0=h-int(140*scale); hit=0
+              for y in range(y0,h):
+                  row=y*w*bpp
+                  for x in range(0,w,3):
+                      r,g,b=px[row+x*bpp],px[row+x*bpp+1],px[row+x*bpp+2]
+                      if b>r+50 and b>g+30 and b>80: hit+=1   # 코발트 계열(딤 오버레이 상태 포함)
+              print(f, 'cobalt px', hit); ok = ok and hit>=300
+          print('TABBAR_OK' if ok else 'TABBAR_MISSING'); sys.exit(0 if ok else 1)
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: simulator-smoke
