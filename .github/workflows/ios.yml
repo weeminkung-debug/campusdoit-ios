@@ -34,6 +34,28 @@ jobs:
         run: |
           test -d ios || npx cap add ios
           npx cap sync ios
+      - name: Native tab bar shell (시안 A) + splash assets
+        run: |
+          set -euo pipefail
+          cp native/App/NativeTabsViewController.swift native/App/NativeTabsPlugin.swift ios/App/App/
+          gem install xcodeproj -N
+          ruby -e '
+            require "xcodeproj"
+            proj = Xcodeproj::Project.open("ios/App/App.xcodeproj")
+            target = proj.targets.find { |t| t.name == "App" } or abort("App target not found")
+            group = proj.main_group.groups.find { |g| g.path == "App" || g.name == "App" } or abort("App group not found")
+            %w[NativeTabsViewController.swift NativeTabsPlugin.swift].each do |f|
+              next if group.files.any? { |x| x.path == f }
+              ref = group.new_reference(f)          # 그룹(App/) 상대 경로
+              target.source_build_phase.add_file_reference(ref, true)
+            end
+            proj.save
+          '
+          ruby native/App/AppDelegate.patch.rb
+          grep -c "NativeTabsViewController.swift" ios/App/App.xcodeproj/project.pbxproj
+          # 스플래시: 코발트 배경 2732 정사각 3종 + LaunchScreen 배경색
+          for f in splash-2732x2732.png splash-2732x2732-1.png splash-2732x2732-2.png; do cp resources/splash-2732x2732.png "ios/App/App/Assets.xcassets/Splash.imageset/$f"; done
+          ls ios/App/App/Assets.xcassets/Splash.imageset/
       - name: App icon 1024 into Assets
         run: cp resources/AppIcon-1024.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
       - name: Export compliance (exempt) into Info.plist
