@@ -31,8 +31,9 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
     private func tryInstall(attempt: Int) {
         DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 0 : 0.3)) { [weak self] in
             guard let self = self, !self.installed else { return }
-            if let vc = self.bridge?.viewController, let host = vc.view, host.window != nil, host.bounds.height > 0 {
-                self.installTabBar(vc: vc, host: host)
+            // Capacitor의 CAPBridgeViewController는 view 자체가 WKWebView라 view.addSubview는 웹뷰 내부에 묻힘(스모크 실측: 탭바 비가시) → 윈도우에 직접 부착
+            if let vc = self.bridge?.viewController, let win = vc.view.window, win.bounds.height > 0 {
+                self.installTabBar(vc: vc, host: win)
             } else if attempt < 40 {
                 self.tryInstall(attempt: attempt + 1)
             }
@@ -55,7 +56,7 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
         tabBar.standardAppearance = ap
         if #available(iOS 15.0, *) { tabBar.scrollEdgeAppearance = ap }
         // 프레임 기반 배치(오토레이아웃 미사용): 하단 고정 + 홈 인디케이터 영역 포함 높이
-        let safeBottom = host.safeAreaInsets.bottom
+        let safeBottom = host.safeAreaInsets.bottom   // host = UIWindow
         let barH: CGFloat = 49 + safeBottom
         tabBar.frame = CGRect(x: 0, y: host.bounds.height - barH, width: host.bounds.width, height: barH)
         tabBar.autoresizingMask = [.flexibleWidth, .flexibleTopMargin]
@@ -69,8 +70,8 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
         // 이후 삽입되는 뷰 대비 재전면
         [0.5, 1.5, 3.0, 6.0].forEach { d in
             DispatchQueue.main.asyncAfter(deadline: .now() + d) { [weak self] in
-                guard let self = self, let h = self.bridge?.viewController?.view else { return }
-                h.bringSubviewToFront(self.tabBar)
+                guard let self = self, let w = self.tabBar.superview else { return }
+                w.bringSubviewToFront(self.tabBar)
             }
         }
         // 스모크 런치 인자: -smokeTab <key>
@@ -82,7 +83,7 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
 
     private func select(_ key: String) {
         guard let i = tabs.firstIndex(where: { $0.key == key }) else { return }
-        bridge?.viewController?.view.bringSubviewToFront(tabBar)
+        tabBar.superview?.bringSubviewToFront(tabBar)
         tabBar.selectedItem = tabBar.items?[i]
         bridge?.webView?.evaluateJavaScript("window.__nativeTab && window.__nativeTab('\(key)')", completionHandler: nil)
     }
