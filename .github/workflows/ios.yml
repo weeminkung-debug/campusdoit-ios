@@ -90,7 +90,8 @@ jobs:
           xcrun simctl terminate "$UDID" com.campusdoit.app || true
           xcrun simctl launch "$UDID" com.campusdoit.app -smokeTab sched; sleep 9
           xcrun simctl io "$UDID" screenshot smoke/02_sched_tab.png
-          if xcrun simctl spawn "$UDID" launchctl list | grep -q "com.campusdoit.app"; then echo "ALIVE"; else echo "PROCESS DEAD"; exit 1; fi
+          xcrun simctl spawn "$UDID" launchctl list > smoke_ll.txt || true
+          if grep -q "com.campusdoit.app" smoke_ll.txt; then echo "ALIVE"; else echo "PROCESS DEAD"; exit 1; fi
           # 탭바 픽셀 검증: 하단 140pt 영역에 코발트 계열 픽셀(활성 탭 아이콘) ≥300(탭바 없음 실측 60·있음 1027) — 3장 전부, 없으면 업로드 차단
           python3 - <<'PY'
           import struct, zlib, sys, glob
