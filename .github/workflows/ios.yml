@@ -83,7 +83,10 @@ jobs:
           APP=$(find build/sim -name "App.app" -path "*iphonesimulator*" | head -1); echo "app=$APP"
           xcrun simctl install "$UDID" "$APP"
           mkdir -p smoke
-          xcrun simctl launch "$UDID" com.campusdoit.app; sleep 8
+          xcrun simctl ui "$UDID" appearance light
+          xcrun simctl launch "$UDID" com.campusdoit.app; sleep 1
+          xcrun simctl io "$UDID" screenshot smoke/00_splash_1s.png
+          sleep 7
           xcrun simctl io "$UDID" screenshot smoke/01_home_8s.png
           sleep 7
           xcrun simctl io "$UDID" screenshot smoke/01_home_15s.png
@@ -91,6 +94,15 @@ jobs:
           xcrun simctl launch "$UDID" com.campusdoit.app -smokeTab sched; sleep 9
           xcrun simctl io "$UDID" screenshot smoke/02_sched_tab.png
           xcrun simctl spawn "$UDID" launchctl list > smoke/launchctl.txt || true
+          xcrun simctl terminate "$UDID" com.campusdoit.app || true
+          # 다크모드 5탭 순회
+          xcrun simctl ui "$UDID" appearance dark
+          for k in cat score home sched my; do
+            xcrun simctl launch "$UDID" com.campusdoit.app -smokeTab $k; sleep 9
+            xcrun simctl io "$UDID" screenshot "smoke/03_dark_$k.png"
+            xcrun simctl terminate "$UDID" com.campusdoit.app || true
+          done
+          xcrun simctl ui "$UDID" appearance light
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -100,9 +112,9 @@ jobs:
         run: |
           set -euo pipefail
           if grep -q "com.campusdoit.app" smoke/launchctl.txt; then echo "ALIVE"; else echo "PROCESS DEAD"; exit 1; fi
-          # 탭바 픽셀 검증: 하단 140pt 영역에 코발트 계열 픽셀(활성 탭 아이콘) ≥300(탭바 없음 실측 60·있음 1027) — 3장 전부, 없으면 업로드 차단
+          # 판정: 00_splash = 하단 140pt에 밝은(탭바) 픽셀 없음 / 01·02 라이트 = 코발트 ≥300 / 03_dark_* = 하단 밴드 어두움(평균 휘도<90) + 코발트 ≥100
           python3 - <<'PY'
-          import struct, zlib, sys, glob
+          import struct, zlib, sys, glob, os
           def png_rgb(path):
               d=open(path,'rb').read(); pos=8; w=h=0; idat=b''
               while pos<len(d):
@@ -122,16 +134,23 @@ jobs:
                           pa=abs(b-c); pb=abs(a-c); pc=abs(a+b-2*c); pr=a if pa<=pb and pa<=pc else (b if pb<=pc else c); line[i]=(line[i]+pr)&255
                   out+=line; prev=line
               return w,h,bpp,bytes(out)
-          ok=True
-          for f in sorted(glob.glob('smoke/*.png')):
-              w,h,bpp,px=png_rgb(f); scale=3 if h>2400 else 2; y0=h-int(140*scale); hit=0
+          def band(f):
+              w,h,bpp,px=png_rgb(f); scale=3 if h>2400 else 2; y0=h-int(140*scale); cob=bright=n=lum=0
               for y in range(y0,h):
                   row=y*w*bpp
                   for x in range(0,w,3):
-                      r,g,b=px[row+x*bpp],px[row+x*bpp+1],px[row+x*bpp+2]
-                      if b>r+50 and b>g+30 and b>80: hit+=1   # 코발트 계열(딤 오버레이 상태 포함)
-              print(f, 'cobalt px', hit); ok = ok and hit>=300
-          print('TABBAR_OK' if ok else 'TABBAR_MISSING'); sys.exit(0 if ok else 1)
+                      r,g,b=px[row+x*bpp],px[row+x*bpp+1],px[row+x*bpp+2]; n+=1; lum+=(r*299+g*587+b*114)//1000
+                      if b>r+50 and b>g+30 and b>80: cob+=1
+                      if r>200 and g>200 and b>200: bright+=1
+              return cob,bright,lum//max(n,1)
+          ok=True
+          for f in sorted(glob.glob('smoke/*.png')):
+              cob,bright,lum=band(f); name=os.path.basename(f)
+              if name.startswith('00_splash'): res=bright<150; rule='splash: bright<150'
+              elif name.startswith('03_dark'): res=(lum<90 and cob>=100); rule='dark: lum<90 & cobalt>=100'
+              else: res=cob>=300; rule='light: cobalt>=300'
+              print(f'{name}: cobalt={cob} bright={bright} lum={lum} [{rule}] {"OK" if res else "FAIL"}'); ok=ok and res
+          print('SMOKE_OK' if ok else 'SMOKE_FAIL'); sys.exit(0 if ok else 1)
           PY
       - name: Import distribution certificate
         run: |
