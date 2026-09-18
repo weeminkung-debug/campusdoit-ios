@@ -48,13 +48,23 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
             item.tag = i
             return item
         }
+        // 결함② 정정: iOS 26 글라스 탭바는 뒤 콘텐츠(웹 화면) 색을 샘플링해 다크에서 라이트로 보일 수 있음
+        // → 불투명 배경 + 시스템 라이트/다크에만 종속되는 동적 색으로 고정(웹 화면 상태 무관)
         let ap = UITabBarAppearance()
-        ap.configureWithDefaultBackground()   // 시스템 머티리얼 — 라이트/다크 자동
+        ap.configureWithOpaqueBackground()
+        ap.backgroundColor = UIColor { tc in tc.userInterfaceStyle == .dark ? UIColor(red: 0.11, green: 0.11, blue: 0.118, alpha: 1) : UIColor(red: 0.976, green: 0.976, blue: 0.976, alpha: 1) }
+        ap.shadowColor = UIColor { tc in tc.userInterfaceStyle == .dark ? UIColor(white: 1, alpha: 0.15) : UIColor(white: 0, alpha: 0.2) }
         let cobalt = UIColor(red: 0.169, green: 0.357, blue: 0.769, alpha: 1)
+        let gray = UIColor { tc in tc.userInterfaceStyle == .dark ? UIColor(white: 0.62, alpha: 1) : UIColor(red: 0.557, green: 0.557, blue: 0.576, alpha: 1) }
         ap.stackedLayoutAppearance.selected.iconColor = cobalt
         ap.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: cobalt]
+        ap.stackedLayoutAppearance.normal.iconColor = gray
+        ap.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: gray]
         tabBar.standardAppearance = ap
         if #available(iOS 15.0, *) { tabBar.scrollEdgeAppearance = ap }
+        tabBar.isTranslucent = false
+        // 결함① 정정: 스플래시(SplashScreen 플러그인, 1.2s) 위에 탭바가 겹침 → 웹 첫 로드 완료 + 스플래시 종료 이후 표시
+        tabBar.isHidden = true
         // 프레임 기반 배치(오토레이아웃 미사용): 하단 고정 + 홈 인디케이터 영역 포함 높이
         let safeBottom = host.safeAreaInsets.bottom   // host = UIWindow
         let barH: CGFloat = 49 + safeBottom
@@ -64,6 +74,7 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
         host.bringSubviewToFront(tabBar)
         tabBar.selectedItem = tabBar.items?[2]
         tabBar.setNeedsLayout(); tabBar.layoutIfNeeded()
+        scheduleReveal()
         // 웹 하단 여백: 탭바 본체 49pt를 세이프에어리어에 가산 → env(safe-area-inset-bottom)
         vc.additionalSafeAreaInsets = UIEdgeInsets(top: 0, left: 0, bottom: 49, right: 0)
         bridge?.webView?.scrollView.verticalScrollIndicatorInsets.bottom = 49
@@ -78,6 +89,22 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
         if let i = ProcessInfo.processInfo.arguments.firstIndex(of: "-smokeTab"), i + 1 < ProcessInfo.processInfo.arguments.count {
             let key = ProcessInfo.processInfo.arguments[i + 1]
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in self?.select(key) }
+        }
+    }
+
+    // 웹뷰 로드 완료(isLoading=false) 확인 + 최소 1.8s(스플래시 1.2s + 페이드) 경과 후 표시
+    private var revealed = false
+    private func scheduleReveal(attempt: Int = 0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 1.8 : 0.25)) { [weak self] in
+            guard let self = self, !self.revealed else { return }
+            let loading = self.bridge?.webView?.isLoading ?? true
+            if !loading || attempt >= 40 {
+                self.revealed = true
+                self.tabBar.alpha = 0; self.tabBar.isHidden = false
+                UIView.animate(withDuration: 0.2) { self.tabBar.alpha = 1 }
+            } else {
+                self.scheduleReveal(attempt: attempt + 1)
+            }
         }
     }
 
