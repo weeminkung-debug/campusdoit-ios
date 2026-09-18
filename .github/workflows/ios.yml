@@ -99,7 +99,6 @@ jobs:
       - name: Smoke judge (alive + tab bar pixels)
         run: |
           set -euo pipefail
-          xcrun simctl spawn "$UDID" launchctl list > smoke_ll.txt || true
           if grep -q "com.campusdoit.app" smoke/launchctl.txt; then echo "ALIVE"; else echo "PROCESS DEAD"; exit 1; fi
           # 탭바 픽셀 검증: 하단 140pt 영역에 코발트 계열 픽셀(활성 탭 아이콘) ≥300(탭바 없음 실측 60·있음 1027) — 3장 전부, 없으면 업로드 차단
           python3 - <<'PY'
