@@ -3267,6 +3267,7 @@ input,textarea,pre,code,.pd-body,.pd-cmt-body,.cx-in{word-break:normal;}
 #appView .imtab.imtab-hide{display:none!important;}
 @media (max-width:599px){ #menuView{width:100%;box-shadow:none;} }   /* W 지시 2026.09.02: 모바일은 화면 끝까지 전폭 */
 @media (prefers-reduced-motion:reduce){ #menuView,#menuDim{transition:none;} }
+html body.native-tabs nav#bottomNav.bottom-nav{display:none!important;}   /* iOS 셸: 모드 규칙보다 우선(스모크 실측: 일정 화면에서 웹 탭 재노출) */
 </style>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
@@ -7503,7 +7504,7 @@ function setNavActive(key){
 /* ── iOS 네이티브 탭바 셸(5번방 확정 A, 09.16): iOS 앱에서만 웹 하단 탭 숨김·라우트 브리지. 안드로이드·웹은 현행 ── */
 function _isNativeTabs(){ try{ return !!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform()&&Capacitor.getPlatform&&Capacitor.getPlatform()==="ios"); }catch(e){ return false; } }
 window.__nativeTab=function(key){ try{ ({cat:goCat,score:goApp,home:goHome,sched:goSchedule,my:goMy})[key](); }catch(e){} };
-document.addEventListener("DOMContentLoaded",function(){ try{ if(_isNativeTabs()) document.body.classList.add("native-tabs"); }catch(e){} });
+document.addEventListener("DOMContentLoaded",function(){ try{ if(_isNativeTabs()&&Capacitor.Plugins&&Capacitor.Plugins.NativeTabs) document.body.classList.add("native-tabs"); }catch(e){} });   /* 5번방 09.17 안전장치: 네이티브 탭바 플러그인 실재 시에만 웹 탭 숨김 */
 function syncLangSeg(){ document.querySelectorAll(".lang-seg").forEach(seg=>{
   const sp=seg.querySelectorAll("span"); if(sp.length<2) return;
   sp[0].classList.toggle("on",LANG==="ko"); sp[1].classList.toggle("on",LANG==="en"); }); }
