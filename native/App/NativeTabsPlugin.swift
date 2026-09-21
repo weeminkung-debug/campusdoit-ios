@@ -50,27 +50,15 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
         }
         // 결함② 정정(5번방 확정: 반투명 글라스 유지): 시스템 머티리얼 블러 + 톤 오버레이(다크 검정 α0.55 / 라이트 흰 α0.55)로
         // 뒤 콘텐츠 샘플링 영향을 균일화, standard = scrollEdge 동일 고정, 탭바 스타일은 시스템 트레이트에만 명시 종속
+        // 5번방 확정(09.21): 시스템 UITabBar 기본 글라스 그대로(오버레이·백드롭 없음), 활성 코발트만 지정
         let ap = UITabBarAppearance()
         ap.configureWithDefaultBackground()
-        ap.backgroundEffect = UIBlurEffect(style: .systemMaterial)
-        ap.backgroundColor = UIColor { tc in tc.userInterfaceStyle == .dark ? UIColor(white: 0, alpha: 0.75) : UIColor(white: 1, alpha: 0.75) }   // α0.75: 5탭 톤 편차≤35 충족치(0.55는 편차 48로 미달)
-        ap.shadowColor = UIColor { tc in tc.userInterfaceStyle == .dark ? UIColor(white: 1, alpha: 0.15) : UIColor(white: 0, alpha: 0.2) }
         let cobalt = UIColor(red: 0.169, green: 0.357, blue: 0.769, alpha: 1)
-        let gray = UIColor { tc in tc.userInterfaceStyle == .dark ? UIColor(white: 0.62, alpha: 1) : UIColor(red: 0.557, green: 0.557, blue: 0.576, alpha: 1) }
         ap.stackedLayoutAppearance.selected.iconColor = cobalt
         ap.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: cobalt]
-        ap.stackedLayoutAppearance.normal.iconColor = gray
-        ap.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: gray]
         tabBar.standardAppearance = ap
         if #available(iOS 15.0, *) { tabBar.scrollEdgeAppearance = ap }
-        tabBar.isTranslucent = true
         tabBar.overrideUserInterfaceStyle = .unspecified   // 시스템 라이트/다크 자동 추종(스모크 실측: 설치 시점 트레이트 고정 시 다크 미반영)
-        // 탭바 뒤 웹뷰 배경을 탭 간 동일하게(짧은 페이지에서 다크 언더페이지 색이 비쳐 탭마다 톤이 달라지던 원인)
-        if let wv = bridge?.webView {
-            let bg = UIColor(red: 0.969, green: 0.973, blue: 0.984, alpha: 1)   // #F7F8FB(웹 배경)
-            wv.isOpaque = true; wv.backgroundColor = bg; wv.scrollView.backgroundColor = bg
-            if #available(iOS 15.0, *) { wv.underPageBackgroundColor = bg }
-        }
         // 결함① 정정: 스플래시(SplashScreen 플러그인, 1.2s) 위에 탭바가 겹침 → 웹 첫 로드 완료 + 스플래시 종료 이후 표시
         tabBar.isHidden = true
         // 프레임 기반 배치(오토레이아웃 미사용): 하단 고정 + 홈 인디케이터 영역 포함 높이
