@@ -53,7 +53,7 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
         let ap = UITabBarAppearance()
         ap.configureWithDefaultBackground()
         ap.backgroundEffect = UIBlurEffect(style: .systemMaterial)
-        ap.backgroundColor = UIColor { tc in tc.userInterfaceStyle == .dark ? UIColor(white: 0, alpha: 0.55) : UIColor(white: 1, alpha: 0.55) }
+        ap.backgroundColor = UIColor { tc in tc.userInterfaceStyle == .dark ? UIColor(white: 0, alpha: 0.75) : UIColor(white: 1, alpha: 0.75) }   // α0.75: 5탭 톤 편차≤35 충족치(0.55는 편차 48로 미달)
         ap.shadowColor = UIColor { tc in tc.userInterfaceStyle == .dark ? UIColor(white: 1, alpha: 0.15) : UIColor(white: 0, alpha: 0.2) }
         let cobalt = UIColor(red: 0.169, green: 0.357, blue: 0.769, alpha: 1)
         let gray = UIColor { tc in tc.userInterfaceStyle == .dark ? UIColor(white: 0.62, alpha: 1) : UIColor(red: 0.557, green: 0.557, blue: 0.576, alpha: 1) }
@@ -64,12 +64,7 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
         tabBar.standardAppearance = ap
         if #available(iOS 15.0, *) { tabBar.scrollEdgeAppearance = ap }
         tabBar.isTranslucent = true
-        tabBar.overrideUserInterfaceStyle = host.traitCollection.userInterfaceStyle   // 시스템 트레이트 명시 종속(웹 휘도 무관)
-        if #available(iOS 17.0, *) {
-            tabBar.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (bar: UITabBar, _: UITraitCollection) in
-                bar.overrideUserInterfaceStyle = bar.window?.traitCollection.userInterfaceStyle ?? .unspecified
-            }
-        }
+        tabBar.overrideUserInterfaceStyle = .unspecified   // 시스템 라이트/다크 자동 추종(스모크 실측: 설치 시점 트레이트 고정 시 다크 미반영)
         // 탭바 뒤 웹뷰 배경을 탭 간 동일하게(짧은 페이지에서 다크 언더페이지 색이 비쳐 탭마다 톤이 달라지던 원인)
         if let wv = bridge?.webView {
             let bg = UIColor(red: 0.969, green: 0.973, blue: 0.984, alpha: 1)   // #F7F8FB(웹 배경)
