@@ -92,7 +92,7 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in self?.select(key) }
             if action == "openSignup" {   /* ⑪ Turnstile: 가입 화면 진입 → +6s 토큰·iframe 상태를 JSON에 기록 */
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
-                    self?.bridge?.webView?.evaluateJavaScript("(function(){try{var d=document.getElementById('dmAgree'); if(d) d.click();}catch(e){} try{goSignup();}catch(e){window.__smokeErr=String(e);} return 1;})()", completionHandler: nil)
+                    self?.bridge?.webView?.evaluateJavaScript("(function(){try{var d=document.getElementById('dmAgree'); if(d) d.click();}catch(e){} try{ if(!window.__fw){ window.__fw=window.fetch; window.fetch=function(u,o){ try{ if(o&&o.headers&&o.headers['X-CampusDoIt-App']) window.__hdrSent=true; }catch(e){} return window.__fw.apply(this,arguments); }; } goSignup(); setTimeout(function(){ try{ var i=document.getElementById('suId'); i.value='smokeuser1'; checkDup('id'); }catch(e){} },800); }catch(e){window.__smokeErr=String(e);} return 1;})()", completionHandler: nil)
                 }
             }
             if action == "runSim" {   // 로그인 게이트: 미로그인 보장(토큰 제거) → 점수 입력 후 실행 → loginView 기대. 5s·7s 2회(멱등)
@@ -112,7 +112,7 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
                 }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + (action == nil ? (key == "home" ? 9.0 : 6.0) : 9.0)) { [weak self] in
-                let js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:!!(document.body.classList.contains('native-tabs')), err:(window.__smokeErr||''), logged:(typeof isLoggedIn==='function'?isLoggedIn():null), layout:(window.__layout||null), ts:(function(){try{var v=document.querySelector('#signupView [name=cf-turnstile-response]');var f=document.querySelectorAll('#signupView iframe').length;return {token:(v&&v.value?v.value.length:0),iframes:f,origin:location.origin}}catch(e){return {err:String(e)}}})()})"
+                let js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:!!(document.body.classList.contains('native-tabs')), err:(window.__smokeErr||''), logged:(typeof isLoggedIn==='function'?isLoggedIn():null), layout:(window.__layout||null), ts:(function(){try{var f=document.querySelectorAll('#signupView iframe').length;var ex=document.querySelectorAll('#signupView [data-ts-exempt]').length;return {iframes:f,exempt:ex,origin:location.origin,hdr:(window.__hdrSent===true)}}catch(e){return {err:String(e)}}})()})"
                 self?.bridge?.webView?.evaluateJavaScript(js) { res, _ in
                     guard let self = self, var str = res as? String, let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
                     str = String(str.dropLast()) + String(format: ",\"splashHideAt\":%.3f,\"revealAt\":%.3f}", self.splashHideAt, self.revealAt)
