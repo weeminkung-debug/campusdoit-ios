@@ -70,7 +70,7 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
         host.bringSubviewToFront(tabBar)
         tabBar.selectedItem = tabBar.items?[2]
         tabBar.setNeedsLayout(); tabBar.layoutIfNeeded()
-        scheduleReveal()
+        pollDom(); scheduleReveal()
         // 웹 하단 여백: 탭바 본체 49pt를 세이프에어리어에 가산 → env(safe-area-inset-bottom) (5번방 09.21: 앱 라이트 전용 선언, 시스템 글라스 그대로)
         vc.additionalSafeAreaInsets = UIEdgeInsets(top: 0, left: 0, bottom: 49, right: 0)
         bridge?.webView?.scrollView.verticalScrollIndicatorInsets.bottom = 49
@@ -90,13 +90,15 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
                 self?.bridge?.webView?.evaluateJavaScript("(function(){try{var d=document.getElementById('dmAgree'); if(d) d.click();}catch(e){} return 1;})()", completionHandler: nil)
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in self?.select(key) }
-            if action == "runSim" {   // 로그인 게이트: 점수 입력 후 실행 → loginView 기대
-                DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self] in
-                    self?.bridge?.webView?.evaluateJavaScript("(function(){try{var d=document.getElementById('dmAgree'); if(d) d.click();}catch(e){} try{setScope('KR'); document.getElementById('scoreBigNum').value='88'; runSim();}catch(e){} return 1;})()", completionHandler: nil)
+            if action == "runSim" {   // 로그인 게이트: 미로그인 보장(토큰 제거) → 점수 입력 후 실행 → loginView 기대. 5s·7s 2회(멱등)
+                [5.0, 7.0].forEach { d in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + d) { [weak self] in
+                        self?.bridge?.webView?.evaluateJavaScript("(function(){try{localStorage.removeItem('doit_token_v1');}catch(e){} try{var d=document.getElementById('dmAgree'); if(d) d.click();}catch(e){} try{ if(typeof _visView==='function'&&_visView()==='loginView') return 2; setScope('KR'); document.getElementById('scoreBigNum').value='88'; runSim(); }catch(e){ window.__smokeErr=String(e); } return 1;})()", completionHandler: nil)
+                    }
                 }
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak self] in
-                let js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:!!(document.body.classList.contains('native-tabs'))})"
+            DispatchQueue.main.asyncAfter(deadline: .now() + (action == nil ? 6.0 : 9.0)) { [weak self] in
+                let js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:!!(document.body.classList.contains('native-tabs')), err:(window.__smokeErr||''), logged:(typeof isLoggedIn==='function'?isLoggedIn():null)})"
                 self?.bridge?.webView?.evaluateJavaScript(js) { res, _ in
                     guard let self = self, var str = res as? String, let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
                     str = String(str.dropLast()) + String(format: ",\"splashHideAt\":%.3f,\"revealAt\":%.3f}", self.splashHideAt, self.revealAt)
@@ -112,6 +114,14 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
     private let t0 = Date()
     private var splashHideAt: Double = -1
     private var revealAt: Double = -1
+    private var domReady = false
+    private func pollDom() {
+        bridge?.webView?.evaluateJavaScript("document.readyState") { [weak self] res, _ in
+            guard let self = self else { return }
+            if let r = res as? String, r == "interactive" || r == "complete" { self.domReady = true }
+            else if !self.revealed { DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { self.pollDom() } }
+        }
+    }
     private func splashVisible() -> Bool {
         guard let wv = bridge?.webView else { return false }
         return wv.subviews.contains { $0 is UIImageView && !$0.isHidden && $0.alpha > 0.05 }
@@ -124,14 +134,9 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
             let splashGone = self.splashSeen && !self.splashVisible()
             if splashGone && self.splashHideAt < 0 { self.splashHideAt = now }
             let timeout = now > 8.0
-            if splashGone || timeout {
-                self.bridge?.webView?.evaluateJavaScript("document.readyState") { res, _ in
-                    let ready = (res as? String).map { $0 == "interactive" || $0 == "complete" } ?? false
-                    if ready || timeout {
-                        self.revealed = true; self.revealAt = Date().timeIntervalSince(self.t0)
-                        self.tabBar.isHidden = false; self.tabBar.alpha = 1
-                    } else { self.scheduleReveal(attempt: attempt + 1) }
-                }
+            if (splashGone && self.domReady) || timeout {
+                self.revealed = true; self.revealAt = now
+                self.tabBar.isHidden = false; self.tabBar.alpha = 1
             } else { self.scheduleReveal(attempt: attempt + 1) }
         }
     }
