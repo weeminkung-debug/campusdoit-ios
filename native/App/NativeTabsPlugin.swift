@@ -97,8 +97,17 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
                     }
                 }
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + (action == nil ? 6.0 : 9.0)) { [weak self] in
-                let js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:!!(document.body.classList.contains('native-tabs')), err:(window.__smokeErr||''), logged:(typeof isLoggedIn==='function'?isLoggedIn():null)})"
+            // ⑩ 홈 레이아웃 안정: +2s·+8s 주요 요소 위치 기록 → 판정 스텝에서 이동 0 검증
+            if key == "home" {
+                [2.0, 8.0].forEach { d in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + d) { [weak self] in
+                        let js = "(function(){try{var q=function(s){var e=document.querySelector(s);return e?Math.round(e.getBoundingClientRect().top+window.scrollY):null};var bn=document.getElementById('homeBn');window.__layout=window.__layout||{};window.__layout[String(\(Int(d)))]={job:q('.job-sec'),cards:q('.home-cards'),bnH:bn?Math.round(bn.getBoundingClientRect().height):null,slides:document.querySelectorAll('#hbnTrack .hbn-s').length};}catch(e){}return 1;})()"
+                        self?.bridge?.webView?.evaluateJavaScript(js, completionHandler: nil)
+                    }
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + (action == nil ? (key == "home" ? 9.0 : 6.0) : 9.0)) { [weak self] in
+                let js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:!!(document.body.classList.contains('native-tabs')), err:(window.__smokeErr||''), logged:(typeof isLoggedIn==='function'?isLoggedIn():null), layout:(window.__layout||null)})"
                 self?.bridge?.webView?.evaluateJavaScript(js) { res, _ in
                     guard let self = self, var str = res as? String, let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
                     str = String(str.dropLast()) + String(format: ",\"splashHideAt\":%.3f,\"revealAt\":%.3f}", self.splashHideAt, self.revealAt)
