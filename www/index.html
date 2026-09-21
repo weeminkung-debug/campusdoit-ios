@@ -357,7 +357,7 @@ form.home-search:has(.ac-list.open){border-radius:18px 18px 0 0!important;border
   #newsView .news-more{display:block;width:100%;font-family:inherit;font-size:14px;font-weight:700;color:var(--sec);background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:12px;margin-top:12px;min-height:44px;cursor:pointer;}
   #newsView .news-src{font-size:12px;color:var(--muted);text-align:center;margin:24px 0 8px;}
   /* ── b576 홈 배너 (B안·W 확정): 가로 스와이프 롤링 카드 ── */
-  .hbn{margin:16px 0 0;}
+  .hbn{margin:16px 0 0;min-height:136px;}   /* 5번방 09.21: 높이 예약(슬라이드 88 + 도트) — 콘텐츠 이동 0 */
   .hbn-track{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-ms-overflow-style:none;}
   .hbn-track::-webkit-scrollbar{display:none;}
   .hbn-s{flex:0 0 100%;scroll-snap-align:start;display:flex;align-items:center;gap:12px;height:88px;background:#FFFFFF;border:1.5px solid var(--line);border-radius:16px;padding:0 16px;position:relative;overflow:hidden;cursor:pointer;box-sizing:border-box;font-family:inherit;text-align:left;}
@@ -3318,7 +3318,7 @@ html body.native-tabs nav#bottomNav.bottom-nav{display:none!important;}   /* iOS
     <button class="hcard main" onclick="goApp()"><span><span class="ht" data-i18n-html="home.card_match">점수 넣고<br>시작하기</span><span class="hd hd-on-red" data-i18n-html="home.card_match_desc">백분위 하나면 준비 끝,<br>결과는 3초면 나와요.</span></span><span class="arr">→</span></button>
     <button class="hcard sub" onclick="goCoord()"><span><span class="ht" data-i18n-html="home.card_coord">두잇 AI<br>입시 코디네이터</span><span class="hd" data-i18n-html="home.card_coord_desc">내 프로필 맞춤<br>입시 전략<br>무료로 함께해요</span></span><span class="arr" style="color:var(--red)">→</span></button>
   </div>
-  <div class="hbn" id="homeBn" style="display:none" role="region" aria-label="홈 배너" data-i18n-aria="common.aria_banner">
+  <div class="hbn" id="homeBn" role="region" aria-label="홈 배너" data-i18n-aria="common.aria_banner">
     <div class="hbn-track" id="hbnTrack"></div>
     <div class="hbn-dots" id="hbnDots"></div>
   </div>
@@ -7680,9 +7680,16 @@ function renderAdSlots(){
 function goApp(){ hideAllViews(); document.body.classList.remove("home-mode","sched-mode","coach-mode","coord-mode"); document.body.classList.add("app-mode"); const _res=document.getElementById("result"); const _keep=_NAV_RESTORING&&_res&&_res.children.length>0; try{setStepOrder("default");}catch(e){} if(!_keep){ try{resetSteps();}catch(e){} }   /* 재진입 초기화(W) — 단 뒤로 복귀(_NAV_RESTORING)로 기존 결과가 있으면 보존 [R-02] */ (document.getElementById("appView")||{}).style.display="block"; setNavActive("match"); try{ if(window.SCOPE_PICKED) syncScopeTabs(COUNTRY); }catch(e){} (document.getElementById("homeView")||{}).style.display="none"; (document.getElementById("coachView")||{}).style.display="none"; (document.getElementById("crossView")||{}).style.display="none"; (document.getElementById("coordView")||{}).style.display="none"; (document.getElementById("appView")||{}).style.display=""; _svRestore();  _navMark("appView"); }
 /* ── b576 홈 배너: 슬롯 = ①시즌(schedule/today) ②기능 소개(문구 7번방 대기 draft) ③입시 소식 최신 1건(news/latest, 미배포 시 자동 제외) ④광고 예비(구조만·비노출 HBN_AD=false) ── */
 var HBN={slots:null,idx:0,timer:null,loading:false}, HBN_AD=false;
+function _hbnTips(){ return [   /* [b584] 7번방 확정 기능소개 카피 — 정적 3장 */
+    {tagK:"hbn.tag_tip",ttK:"hbn.tip3_t",subK:"hbn.tip3_s",act:"app"},
+    {tagK:"hbn.tag_tip",ttK:"hbn.tip1_t",subK:"hbn.tip1_s",act:"fee"},
+    {tagK:"hbn.tag_tip",ttK:"hbn.tip2_t",subK:"hbn.tip2_s",act:"sched"} ]; }
 async function hbnLoad(){
   if(HBN.slots||HBN.loading) { hbnRender(); return; }
   HBN.loading=true;
+  /* 5번방 09.21 홈 점프 정정: 원인 = 배너가 API(오늘 일정·소식) 응답 후에만 표시(display:none→block)되어 아래 카드가 밀림(b584 이래 잠복, 최근 수정 무관).
+     정정 = 정적 3장으로 즉시 렌더(높이 확정) → API 결과는 슬라이드 내용만 교체(높이 동일). */
+  HBN.slots=_hbnTips(); hbnRender();
   var slots=[];
   try{ const r=await fetch(API_BASE+"/api/v1/schedule/today?country=KR");
     if(r.ok){ const d=await r.json();
@@ -7690,9 +7697,7 @@ async function hbnLoad(){
         const nm=((ev.univ&&ev.univ!=="null")?univName(ev.univ)+" ":"")+termText(ev.name||"");
         const dt=(ev.date||ev.end||ev.day||"").slice(0,10);
         slots.push({tagK:"hbn.tag_season",tt:nm,sub:dt?_svDateHead(dt):"",act:"sched"}); } } }catch(e){}
-  slots.push({tagK:"hbn.tag_tip",ttK:"hbn.tip3_t",subK:"hbn.tip3_s",act:"app"});   /* [b584] 7번방 확정 기능소개 카피 */
-  slots.push({tagK:"hbn.tag_tip",ttK:"hbn.tip1_t",subK:"hbn.tip1_s",act:"fee"});
-  slots.push({tagK:"hbn.tag_tip",ttK:"hbn.tip2_t",subK:"hbn.tip2_s",act:"sched"});
+  slots=slots.concat(_hbnTips());
   try{ const r=await fetch(API_BASE+"/api/v1/news/latest");
     if(r.ok){ const d=await r.json(); const it=(d&&d.item)||null;   /* 4번방 확정 */
       if(it&&it.title){ slots.push({tagK:"hbn.tag_news",tt:it.title,
