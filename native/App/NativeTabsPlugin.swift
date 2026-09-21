@@ -93,10 +93,27 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
                 w.bringSubviewToFront(self.tabBar)
             }
         }
-        // 스모크 런치 인자: -smokeTab <key>
-        if let i = ProcessInfo.processInfo.arguments.firstIndex(of: "-smokeTab"), i + 1 < ProcessInfo.processInfo.arguments.count {
-            let key = ProcessInfo.processInfo.arguments[i + 1]
+        // 스모크 런치 인자: -smokeTab <key> [-smokeAction runSim]  → +2.5s 탭 전환, +5s 상태 JSON을 Documents/smoke_<key>.json 에 기록
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-smokeTab"), i + 1 < args.count {
+            let key = args[i + 1]
+            let action: String? = { if let j = args.firstIndex(of: "-smokeAction"), j + 1 < args.count { return args[j + 1] } ; return nil }()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in   // 첫 진입 면책 팝업 닫기(딤 오버레이가 탭바 톤 측정에 섞이지 않게)
+                self?.bridge?.webView?.evaluateJavaScript("(function(){try{var d=document.getElementById('dmAgree'); if(d) d.click();}catch(e){} return 1;})()", completionHandler: nil)
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in self?.select(key) }
+            if action == "runSim" {   // 로그인 게이트: 점수 입력 후 실행 → loginView 기대
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self] in
+                    self?.bridge?.webView?.evaluateJavaScript("(function(){try{var d=document.getElementById('dmAgree'); if(d) d.click();}catch(e){} try{setScope('KR'); document.getElementById('scoreBigNum').value='88'; runSim();}catch(e){} return 1;})()", completionHandler: nil)
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak self] in
+                let js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:!!(document.body.classList.contains('native-tabs'))})"
+                self?.bridge?.webView?.evaluateJavaScript(js) { res, _ in
+                    guard let str = res as? String, let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+                    try? str.write(to: dir.appendingPathComponent("smoke_\(key).json"), atomically: true, encoding: .utf8)
+                }
+            }
         }
     }
 
