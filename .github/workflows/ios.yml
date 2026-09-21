@@ -91,8 +91,9 @@ jobs:
           cap(){ xcrun simctl io "$UDID" screenshot "smoke/$1.png"; }
           xcrun simctl ui "$UDID" appearance light
           # ① ② ⑦
-          xcrun simctl launch "$UDID" $B; sleep 1; cap 00_splash_1s
-          sleep 7; cap 01_home_8s; sleep 7; cap 01_home_15s
+          xcrun simctl launch "$UDID" $B -smokeTab home; sleep 0.3; cap 00_splash_1s
+          sleep 1.3; cap 00_home_first   # 스플래시(1.2s) 걷힌 직후 ≈0.3s
+          sleep 6.4; cap 01_home_8s; sleep 7; cap 01_home_15s
           xcrun simctl spawn "$UDID" launchctl list > smoke/launchctl.txt || true
           xcrun simctl terminate "$UDID" $B || true
           # ③ ④ ⑤ ⑥ — 라이트/다크 × 5탭 (상태 JSON은 앱 Documents에 기록)
@@ -155,7 +156,10 @@ jobs:
               return cob,lum//max(n,1)
           S=lambda n: f'smoke/{n}.png'; R=[]
           def item(no,name,ok,detail): R.append((no,name,ok,detail))
-          c,l=band(S('00_splash_1s')); item(1,'스플래시 1초 탭바 미노출', c<150, f'cobalt={c}')
+          c,l=band(S('00_splash_1s')); item(1,'스플래시 중 탭바 미노출', c<150, f'cobalt={c}')
+          try: hj=json.load(open('smoke/smoke_home.json')); sh=hj.get('splashHideAt',-1); rv=hj.get('revealAt',-1)
+          except Exception: sh=rv=-1
+          cf,_=band(S('00_home_first')); item(1.5,'홈 등장 직후 0.3s 탭바 + 스플래시 종료와 동시(≤0.15s)', cf>=200 and sh>0 and rv>0 and 0<=rv-sh<=0.15, f'cobalt={cf} splashHide={sh}s reveal={rv}s')
           c8,l8=band(S('01_home_8s')); c15,l15=band(S('01_home_15s')); item(2,'홈 8·15초 로드+탭바', c8>=200 and c15>=200, f'cobalt 8s={c8} 15s={c15}')
           tabs=['cat','score','home','sched','my']; lt={k:band(S(f'02_light_{k}')) for k in tabs}; dk={k:band(S(f'02_dark_{k}')) for k in tabs}
           item(3,'5탭 전환 캡처(라이트)', all(lt[k][0]>=200 for k in tabs), ' '.join(f'{k}={lt[k][0]}' for k in tabs))
