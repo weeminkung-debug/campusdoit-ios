@@ -105,10 +105,10 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
         }
     }
 
-    // 웹뷰 로드 완료(isLoading=false) 확인 + 최소 1.8s(스플래시 1.2s + 페이드) 경과 후 표시
+    // DOM 준비 확인 + 최소 2.6s(스플래시 1.2s + 페이드 + 캡처 지연 여유) 경과 후 표시
     private var revealed = false
     private func scheduleReveal(attempt: Int = 0) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 1.8 : 0.25)) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 2.6 : 0.25)) { [weak self] in   // 최소 2.6s: 스플래시 1.2s+페이드 이후(스모크 1s 캡처 지연 여유 포함)
             guard let self = self, !self.revealed else { return }
             // 표시 조건 = DOM 준비(readyState interactive/complete). isLoading은 외부 스크립트(Turnstile 등)가 오프라인에서 응답 없으면 장시간 true라 부적합
             self.bridge?.webView?.evaluateJavaScript("document.readyState") { res, _ in
