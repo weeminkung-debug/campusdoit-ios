@@ -71,7 +71,7 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
         tabBar.selectedItem = tabBar.items?[2]
         tabBar.setNeedsLayout(); tabBar.layoutIfNeeded()
         scheduleReveal()
-        // 웹 하단 여백: 탭바 본체 49pt를 세이프에어리어에 가산 → env(safe-area-inset-bottom)
+        // 웹 하단 여백: 탭바 본체 49pt를 세이프에어리어에 가산 → env(safe-area-inset-bottom) (5번방 09.21: 앱 라이트 전용 선언, 시스템 글라스 그대로)
         vc.additionalSafeAreaInsets = UIEdgeInsets(top: 0, left: 0, bottom: 49, right: 0)
         bridge?.webView?.scrollView.verticalScrollIndicatorInsets.bottom = 49
         // 이후 삽입되는 뷰 대비 재전면
@@ -110,13 +110,16 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
     private func scheduleReveal(attempt: Int = 0) {
         DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 1.8 : 0.25)) { [weak self] in
             guard let self = self, !self.revealed else { return }
-            let loading = self.bridge?.webView?.isLoading ?? true
-            if !loading || attempt >= 40 {
-                self.revealed = true
-                self.tabBar.alpha = 0; self.tabBar.isHidden = false
-                UIView.animate(withDuration: 0.2) { self.tabBar.alpha = 1 }
-            } else {
-                self.scheduleReveal(attempt: attempt + 1)
+            // 표시 조건 = DOM 준비(readyState interactive/complete). isLoading은 외부 스크립트(Turnstile 등)가 오프라인에서 응답 없으면 장시간 true라 부적합
+            self.bridge?.webView?.evaluateJavaScript("document.readyState") { res, _ in
+                let ready = (res as? String).map { $0 == "interactive" || $0 == "complete" } ?? false
+                if ready || attempt >= 40 {
+                    self.revealed = true
+                    self.tabBar.alpha = 0; self.tabBar.isHidden = false
+                    UIView.animate(withDuration: 0.2) { self.tabBar.alpha = 1 }
+                } else {
+                    self.scheduleReveal(attempt: attempt + 1)
+                }
             }
         }
     }
