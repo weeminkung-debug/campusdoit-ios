@@ -108,6 +108,9 @@ jobs:
           # ⑨ 로그인 게이트: 점수진단 탭 → 88 입력 → 실행 → loginView
           xcrun simctl launch "$UDID" $B -smokeTab score -smokeAction runSim; sleep 12; cap 04_login_gate
           xcrun simctl terminate "$UDID" $B || true
+          # ⑪ Turnstile: 가입 화면 진입 후 위젯 토큰(네트워크 허용 전제)
+          xcrun simctl launch "$UDID" $B -smokeTab my -smokeAction openSignup; sleep 12; cap 06_signup_turnstile
+          xcrun simctl terminate "$UDID" $B || true
           # ⑧ 오프라인: pf로 아웃바운드 차단 후 실행(번들 웹이라 홈 로드·탭바 기대)
           IF=$(route -n get 8.8.8.8 2>/dev/null | awk '/interface:/{print $2}'); echo "block on $IF"
           printf "block drop out quick on %s proto {tcp udp} from any to any\n" "$IF" | sudo pfctl -f - || true; sudo pfctl -e || true
@@ -179,6 +182,9 @@ jobs:
           except Exception: a=b8={}
           ok10=bool(a) and bool(b8) and a.get('job') is not None and a.get('job')==b8.get('job') and a.get('cards')==b8.get('cards') and a.get('bnH')==b8.get('bnH')
           item(10,'홈 레이아웃 이동 0 (2s↔8s: 카드·배너 높이·직업 카드 위치)', ok10, f'2s={a} 8s={b8}')
+          try: T=json.load(open('smoke/smoke_my.json')); ts=T.get('ts') or {}; tv=T.get('view')
+          except Exception: ts={}; tv='nojson'
+          item(11,'Turnstile 위젯 로드(가입 화면, Origin https://localhost, 토큰 발급)', tv=='signupView' and (ts.get('iframes',0)>=1) and (ts.get('token',0)>0), f'view={tv} {ts}')
           ok=all(r[2] for r in R)
           md='| # | 항목 | 결과 | 수치 |\n|---|---|---|---|\n'+'\n'.join(f'| {n} | {nm} | {"✅ PASS" if o else "❌ FAIL"} | {d} |' for n,nm,o,d in R)+f'\n\n**{"SMOKE_OK" if ok else "SMOKE_FAIL"}**\n'
           open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## iOS 셸 스모크 9항\n'+md); print(md); sys.exit(0 if ok else 1)
