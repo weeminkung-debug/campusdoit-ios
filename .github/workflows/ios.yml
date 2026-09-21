@@ -20,6 +20,7 @@ jobs:
       ASC_KEY_P8_B64: ${{ secrets.ASC_KEY_P8_B64 }}
       IOS_CERT_P12_B64: ${{ secrets.IOS_CERT_P12_B64 }}
       IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+      APP_HDR_SECRET: ${{ secrets.APP_HDR_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
@@ -31,6 +32,17 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Inject app header secret (Turnstile 면제 헤더, 5번방 ⓐ)
+        run: |
+          set -euo pipefail
+          test -n "$APP_HDR_SECRET" || { echo "APP_HDR_SECRET secret missing"; exit 1; }
+          python3 - <<'PY'
+          import os,io
+          p='www/index.html'; s=io.open(p,encoding='utf-8').read()
+          assert s.count('"__APP_HDR_SECRET__"')==1, 'placeholder count != 1'
+          io.open(p,'w',encoding='utf-8').write(s.replace('"__APP_HDR_SECRET__"','"'+os.environ['APP_HDR_SECRET'].replace('\\','\\\\').replace('"','\\"')+'"'))
+          print('secret injected')
+          PY
       - name: Add & sync iOS
         run: |
           test -d ios || npx cap add ios
@@ -184,7 +196,7 @@ jobs:
           item(10,'홈 레이아웃 이동 0 (2s↔8s: 카드·배너 높이·직업 카드 위치)', ok10, f'2s={a} 8s={b8}')
           try: T=json.load(open('smoke/smoke_my.json')); ts=T.get('ts') or {}; tv=T.get('view')
           except Exception: ts={}; tv='nojson'
-          item(11,'Turnstile 위젯 로드(가입 화면, Origin https://localhost, 토큰 발급)', tv=='signupView' and (ts.get('iframes',0)>=1) and (ts.get('token',0)>0), f'view={tv} {ts}')
+          item(11,'iOS Turnstile 면제: 가입 화면 진입 + 위젯 미렌더 + 앱 헤더 전송', tv=='signupView' and ts.get('iframes',0)==0 and ts.get('exempt',0)>=1 and ts.get('hdr')==True, f'view={tv} {ts}')
           ok=all(r[2] for r in R)
           md='| # | 항목 | 결과 | 수치 |\n|---|---|---|---|\n'+'\n'.join(f'| {n} | {nm} | {"✅ PASS" if o else "❌ FAIL"} | {d} |' for n,nm,o,d in R)+f'\n\n**{"SMOKE_OK" if ok else "SMOKE_FAIL"}**\n'
           open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## iOS 셸 스모크 9항\n'+md); print(md); sys.exit(0 if ok else 1)
