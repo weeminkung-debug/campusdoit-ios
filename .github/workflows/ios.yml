@@ -63,6 +63,9 @@ jobs:
           /usr/libexec/PlistBuddy -c "Delete :ITSAppUsesNonExemptEncryption" ios/App/App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Print :ITSAppUsesNonExemptEncryption" ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Delete :UIUserInterfaceStyle" ios/App/App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIUserInterfaceStyle string Light" ios/App/App/Info.plist   # 5번방 09.21: 앱 라이트 전용(스플래시·상태바 포함)
+          /usr/libexec/PlistBuddy -c "Print :UIUserInterfaceStyle" ios/App/App/Info.plist
       - uses: actions/cache@v4
         with:
           path: ~/Library/Caches/CocoaPods
@@ -105,8 +108,10 @@ jobs:
           xcrun simctl launch "$UDID" $B -smokeTab score -smokeAction runSim; sleep 10; cap 04_login_gate
           xcrun simctl terminate "$UDID" $B || true
           # ⑧ 오프라인: pf로 아웃바운드 차단 후 실행(번들 웹이라 홈 로드·탭바 기대)
-          printf 'set skip on lo0\nblock drop out quick proto {tcp udp} from any to any\n' | sudo pfctl -f - || true; sudo pfctl -e || true
-          xcrun simctl launch "$UDID" $B; sleep 9; cap 05_offline_home
+          IF=$(route -n get 8.8.8.8 2>/dev/null | awk '/interface:/{print $2}'); echo "block on $IF"
+          printf "block drop out quick on %s proto {tcp udp} from any to any\n" "$IF" | sudo pfctl -f - || true; sudo pfctl -e || true
+          sudo pfctl -s rules || true
+          xcrun simctl launch "$UDID" $B -smokeTab home; sleep 12; cap 05_offline_home
           xcrun simctl terminate "$UDID" $B || true
           sudo pfctl -d || true
           # 상태 JSON 수집
@@ -155,7 +160,7 @@ jobs:
           tabs=['cat','score','home','sched','my']; lt={k:band(S(f'02_light_{k}')) for k in tabs}; dk={k:band(S(f'02_dark_{k}')) for k in tabs}
           item(3,'5탭 전환 캡처(라이트)', all(lt[k][0]>=200 for k in tabs), ' '.join(f'{k}={lt[k][0]}' for k in tabs))
           item(4,'라이트 5탭 탭바 휘도 모두 >128', all(lt[k][1]>128 for k in tabs), f'lum {[lt[k][1] for k in tabs]}')
-          item(5,'다크 5탭 탭바 휘도 모두 <128 + 탭바 표시', all(dk[k][1]<128 and dk[k][0]>=100 for k in tabs), f'lum {[dk[k][1] for k in tabs]} cobalt {[dk[k][0] for k in tabs]}')
+          item(5,'다크 설정에서도 5탭 휘도 >128(라이트 전용) + 탭바 표시', all(dk[k][1]>128 and dk[k][0]>=100 for k in tabs), f'lum {[dk[k][1] for k in tabs]} cobalt {[dk[k][0] for k in tabs]}')
           navs={}
           for k in tabs:
               try: navs[k]=json.load(open(f'smoke/smoke_{k}.json'))
