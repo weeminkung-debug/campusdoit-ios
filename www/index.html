@@ -4188,6 +4188,7 @@ async function apiCall(path, opts){
   opts=opts||{};
   const headers=Object.assign({"Content-Type":"application/json"}, opts.headers||{});
   if(opts.auth){ const tk=authToken(); if(tk) headers["Authorization"]="Bearer "+tk; }
+  try{ if(_isNativeTabs()&&APP_HDR_SECRET&&APP_HDR_SECRET.indexOf("__")!==0) headers["X-CampusDoIt-App"]=APP_HDR_SECRET; }catch(e){}   /* 5번방 09.21 ⓐ: iOS 앱 요청 = Turnstile 면제 헤더(빌드 시 주입) */
   let res;
   try{ res=await fetch(API_BASE+path, {method:opts.method||"GET", headers:headers, body:opts.body?JSON.stringify(opts.body):undefined}); }
   catch(e){ return {ok:false, error:t("common.err_net"), status:0}; }
@@ -4198,7 +4199,7 @@ async function apiCall(path, opts){
 }
 /* [R-C] Turnstile 콜백 게이팅 — 토큰 획득(콜백) 후에만 제출 활성 */
 function onTsOk_signup(){ var b=document.getElementById("suBtn"); if(b) b.disabled=false; }
-function onTsGone_signup(){ var b=document.getElementById("suBtn"); if(b) b.disabled=true; }
+function onTsGone_signup(){ if(_tsExempt()) return; var b=document.getElementById("suBtn"); if(b) b.disabled=true; }
 /* Turnstile 토큰 획득 */
 function turnstileReset(view){
   try{ if(!window.turnstile) return;
@@ -4220,6 +4221,9 @@ function turnstileToken(view){
       var tk=(w!=null?turnstile.getResponse(w):turnstile.getResponse(el)); if(tk) return tk; } }catch(e){}
   return "";
 }
+function _tsExempt(){ return _isNativeTabs(); }   /* iOS 앱 = Turnstile 면제(5번방 ⓐ) */
+document.addEventListener("DOMContentLoaded",function(){ try{ if(_tsExempt()){ document.querySelectorAll(".cf-turnstile").forEach(function(e){ e.style.display="none"; e.classList.remove("cf-turnstile"); e.setAttribute("data-ts-exempt","1"); });
+  ["suBtn","pwSubmitBtn","pdCmtSendBtn","pcSubmit"].forEach(function(id){ var b=document.getElementById(id); if(b) b.disabled=false; }); } }catch(e){} });
 /* 게스트 실기능 접근 시 로그인 유도 */
 function refreshMyAuth(){
   var guest=document.getElementById("myAuthGuest"), user=document.getElementById("myAuthUser");
@@ -4251,6 +4255,7 @@ async function restoreSession(){
   if(r.ok && r.data && r.data.user){ CURRENT_USER=r.data.user; } else { CURRENT_USER=null; }
   refreshMyAuth();
 }
+var APP_HDR_SECRET="__APP_HDR_SECRET__";   /* iOS 빌드 시 ios.yml이 GitHub Secret으로 치환. 웹은 자리표시자 그대로(미전송) */
 var LOGIN_NEXT=null;
 /* 5번방 로그인 기준표(09.16): 열람 = 무로그인 / 기능 실행 = 로그인 창 → 로그인 후 원래 동작 이어감 */
 function gateLogin(fnName, args, msgKey){ if(isLoggedIn()) return true; LOGIN_NEXT={fn:fnName,args:args||[]}; requireLogin(msgKey||"auth.login_feature"); return false; }
@@ -5267,7 +5272,7 @@ let TODAY_ITEMS=[];
 /* ═══ ② 투표 카드 (GET /poll/current · POST /poll/vote · /poll/comment_like) ═══ */
 let POLL=null, POLL_TS_ID=null;
 function onTsOk_poll(){ const b=document.getElementById("pcSubmit"); if(b) b.disabled=false; }
-function onTsGone_poll(){ const b=document.getElementById("pcSubmit"); if(b) b.disabled=true; }
+function onTsGone_poll(){ if(_tsExempt()) return; const b=document.getElementById("pcSubmit"); if(b) b.disabled=true; }
 async function loadPoll(){
   const sec=document.getElementById("pollSec"); if(!sec) return;
   const r=await apiCall("/api/v1/poll/current",{auth:isLoggedIn()});
@@ -5351,7 +5356,7 @@ async function pollCmtSubmit(){
   const body=((document.getElementById("pcBody")||{}).value||"").trim();
   if(!body){ show(t("board.cmt_v_required")); return; }
   let tk=""; try{ const inp=document.querySelector('#pollCard [name="cf-turnstile-response"]'); if(inp&&inp.value) tk=inp.value; }catch(e){}
-  if(!tk){ show(t("auth.v_captcha")); return; }
+  if(!tk&&!_tsExempt()){ show(t("auth.v_captcha")); return; }
   const r=await apiCall("/api/v1/board/comment",{method:"POST",auth:true,body:{post_id:POLL.anchor_post_id, body:body, turnstile_token:tk}});
   if(!r.ok){ show(r.error||t("board.cmt_fail")); onTsGone_poll(); try{ const el=document.getElementById("pollTs"); if(el) turnstile.reset(el.getAttribute("data-widget-id")||el); }catch(e){} return; }
   toast(t("board.cmt_done")); loadPoll();   /* 목록 갱신(베스트 고정 = 서버 판정) */
@@ -5561,7 +5566,7 @@ const SECQ_LIST=[["nickname","secq.nickname"],["pet","secq.pet"],["friend","secq
 async function doSignup(){
   if(!signupValidate()){ return; }
   var tk=turnstileToken("signupView");
-  if(!tk){ toast(t("auth.v_captcha")); return; }
+  if(!tk&&!_tsExempt()){ toast(t("auth.v_captcha")); return; }
   var body={ login_id:(document.getElementById("suId")||{}).value.trim(), nickname:(document.getElementById("suNick")||{}).value.trim(),
     password:normPw((document.getElementById("suPw")||{}).value), age14_ok:(document.getElementById("suAge")||{}).checked,
     secq_pw:(document.getElementById("suSecQpw")||{}).value, seca_pw:(document.getElementById("suSecApw")||{}).value.trim(),
@@ -5913,7 +5918,7 @@ async function doLike(pid){
 }
 /* ===== 게시판 글쓰기 배선 (§9 게이트: BOARD_WRITE_ENABLED) ===== */
 function onTsOk_post(){ var b=document.getElementById("pwSubmitBtn"); if(b) b.disabled=false; }
-function onTsGone_post(){ var b=document.getElementById("pwSubmitBtn"); if(b) b.disabled=true; }
+function onTsGone_post(){ if(_tsExempt()) return; var b=document.getElementById("pwSubmitBtn"); if(b) b.disabled=true; }
 function goPostWrite(){
   if(!BOARD_WRITE_ENABLED){ toast(t("common.coming_soon")); return; }
   if(!requireLogin()) return;
@@ -5938,7 +5943,7 @@ async function submitPost(){
   if(!title||!body){ _showPE(t("board.v_required")); return; }
   if(!(document.getElementById("pwAgree")||{}).checked){ _showPE(t("board.v_agree")); return; }
   var tk=turnstileToken("postWriteView");
-  if(!tk){ _showPE(t("auth.v_captcha")); return; }
+  if(!tk&&!_tsExempt()){ _showPE(t("auth.v_captcha")); return; }
   var r=await apiCall("/api/v1/board/post", {method:"POST", auth:true,
     body:{board_type:BOARD_STATE.type, title:title, body:body, turnstile_token:tk}});
   if(!r.ok){
@@ -5955,7 +5960,7 @@ async function submitPost(){
 }
 /* ===== 게시판 댓글 배선 (§9 게이트 공유: BOARD_WRITE_ENABLED) ===== */
 function onTsOk_comment(){ var b=document.getElementById("pdCmtSendBtn"); if(b) b.disabled=false; }
-function onTsGone_comment(){ var b=document.getElementById("pdCmtSendBtn"); if(b) b.disabled=true; }
+function onTsGone_comment(){ if(_tsExempt()) return; var b=document.getElementById("pdCmtSendBtn"); if(b) b.disabled=true; }
 var REPLY_TO=null;
 function cmtCancel(){ var i=document.getElementById("cmtBody"); if(i) i.value=""; cancelReply(); try{ syncCmtBtn(); }catch(e){} }
 function startReply(cid, author, mention, el){
@@ -5985,7 +5990,7 @@ async function submitComment(){
   var body=((document.getElementById("cmtBody")||{}).value||"").trim();
   if(!body){ _showCE(t("board.cmt_v_required")); return; }
   var tk=turnstileToken("postView");
-  if(!tk){ _showCE(t("auth.v_captcha")); return; }
+  if(!tk&&!_tsExempt()){ _showCE(t("auth.v_captcha")); return; }
   if(REPLY_TO&&REPLY_TO.mention&&REPLY_TO.author&&body.indexOf("@"+REPLY_TO.author)!==0) body="@"+REPLY_TO.author+" "+body;   /* W 09.03: 대댓글 답글 = @작성자 */
   var _cbody={post_id:CUR_POST.id, body:body, turnstile_token:tk};
   if(REPLY_TO) _cbody.parent_comment_id=REPLY_TO.id;
