@@ -98,29 +98,41 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak self] in
                 let js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:!!(document.body.classList.contains('native-tabs'))})"
                 self?.bridge?.webView?.evaluateJavaScript(js) { res, _ in
-                    guard let str = res as? String, let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+                    guard let self = self, var str = res as? String, let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+                    str = String(str.dropLast()) + String(format: ",\"splashHideAt\":%.3f,\"revealAt\":%.3f}", self.splashHideAt, self.revealAt)
                     try? str.write(to: dir.appendingPathComponent("smoke_\(key).json"), atomically: true, encoding: .utf8)
                 }
             }
         }
     }
 
-    // DOM 준비 확인 + 최소 2.6s(스플래시 1.2s + 페이드 + 캡처 지연 여유) 경과 후 표시
+    // 표시 시점 = 스플래시가 걷히는 프레임과 동시(5번방 09.21): SplashScreen 플러그인의 이미지뷰(webView 서브뷰)가 제거되는 순간 + DOM 준비 → 즉시 표시. 고정 지연 없음(폴링 50ms)
     private var revealed = false
+    private var splashSeen = false
+    private let t0 = Date()
+    private var splashHideAt: Double = -1
+    private var revealAt: Double = -1
+    private func splashVisible() -> Bool {
+        guard let wv = bridge?.webView else { return false }
+        return wv.subviews.contains { $0 is UIImageView && !$0.isHidden && $0.alpha > 0.05 }
+    }
     private func scheduleReveal(attempt: Int = 0) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 2.6 : 0.25)) { [weak self] in   // 최소 2.6s: 스플래시 1.2s+페이드 이후(스모크 1s 캡처 지연 여유 포함)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             guard let self = self, !self.revealed else { return }
-            // 표시 조건 = DOM 준비(readyState interactive/complete). isLoading은 외부 스크립트(Turnstile 등)가 오프라인에서 응답 없으면 장시간 true라 부적합
-            self.bridge?.webView?.evaluateJavaScript("document.readyState") { res, _ in
-                let ready = (res as? String).map { $0 == "interactive" || $0 == "complete" } ?? false
-                if ready || attempt >= 40 {
-                    self.revealed = true
-                    self.tabBar.alpha = 0; self.tabBar.isHidden = false
-                    UIView.animate(withDuration: 0.2) { self.tabBar.alpha = 1 }
-                } else {
-                    self.scheduleReveal(attempt: attempt + 1)
+            let now = Date().timeIntervalSince(self.t0)
+            if self.splashVisible() { self.splashSeen = true }
+            let splashGone = self.splashSeen && !self.splashVisible()
+            if splashGone && self.splashHideAt < 0 { self.splashHideAt = now }
+            let timeout = now > 8.0
+            if splashGone || timeout {
+                self.bridge?.webView?.evaluateJavaScript("document.readyState") { res, _ in
+                    let ready = (res as? String).map { $0 == "interactive" || $0 == "complete" } ?? false
+                    if ready || timeout {
+                        self.revealed = true; self.revealAt = Date().timeIntervalSince(self.t0)
+                        self.tabBar.isHidden = false; self.tabBar.alpha = 1
+                    } else { self.scheduleReveal(attempt: attempt + 1) }
                 }
-            }
+            } else { self.scheduleReveal(attempt: attempt + 1) }
         }
     }
 
