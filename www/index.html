@@ -5548,7 +5548,7 @@ document.addEventListener("keydown",function(e){
   if(e.key!=="Enter"||e.isComposing) return;
   var t=e.target; if(!t||t.tagName!=="INPUT") return;
   var id=t.id||"";
-  if(id==="majorKw"||id==="tgtUniv"||id==="tgtMajor"||id==="scoreBigNum"||id==="scnum"){
+  if(id==="majorKw"||id==="tgtMajor"||id==="scoreBigNum"||id==="scnum"){   /* 5번방 09.21: tgtUniv는 다음 입력(학과)으로 이동, 실행은 마지막 필드에서 */
     var ac=document.querySelector(".ac-list.open .ac-item.on");
     if(ac){ return; }   /* 자동완성 선택 중이면 기존 동작 우선 */
     e.preventDefault(); try{ t.blur(); runSim(); }catch(err){}
@@ -7518,6 +7518,19 @@ function setNavActive(key){
 /* ── iOS 네이티브 탭바 셸(5번방 확정 A, 09.16): iOS 앱에서만 웹 하단 탭 숨김·라우트 브리지. 안드로이드·웹은 현행 ── */
 function _isNativeTabs(){ try{ return !!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform()&&Capacitor.getPlatform&&Capacitor.getPlatform()==="ios"); }catch(e){ return false; } }
 window.__nativeTab=function(key){ try{ ({cat:goCat,score:goApp,home:goHome,sched:goSchedule,my:goMy})[key](); }catch(e){} };
+/* 5번방 09.21 전역: 모바일 엔터 = 같은 폼 다음 입력창 이동, 마지막이면 확인 버튼 실행. textarea 제외 */
+function _enterScope(el){ return el.closest("form")||el.closest("[data-enter-scope]")||el.closest(".jsheet, .tu-sheet, .conv-sheet")||el.closest("[id$=\"View\"]")||el.closest("section")||document.body; }
+function _enterInputs(scope){ return [...scope.querySelectorAll("input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([disabled])")].filter(function(e){ var r=e.getBoundingClientRect(); return r.width>0&&r.height>0&&getComputedStyle(e).visibility!=="hidden"; }); }
+function _enterSubmit(scope){ return scope.querySelector("[data-enter-submit]")||scope.querySelector("button[type=submit]")||scope.querySelector(".auth-btn:not([disabled]),.tgt-btn:not([disabled])"); }
+function _enterHintSync(el){ try{ var sc=_enterScope(el), list=_enterInputs(sc), i=list.indexOf(el); el.setAttribute("enterkeyhint",(i>=0&&i<list.length-1)?"next":(sc.tagName==="FORM"?"go":"done")); }catch(e){} }
+document.addEventListener("focusin",function(ev){ var el=ev.target; if(el&&el.tagName==="INPUT") _enterHintSync(el); });
+document.addEventListener("keydown",function(ev){
+  if(ev.key!=="Enter"||ev.isComposing) return; var el=ev.target; if(!el||el.tagName!=="INPUT") return;
+  var sc=_enterScope(el), list=_enterInputs(sc), i=list.indexOf(el);
+  if(i>=0&&i<list.length-1){ ev.preventDefault(); list[i+1].focus(); return; }
+  if(sc.tagName==="FORM") return;   /* 폼 마지막 = 기본 submit 유지 */
+  var btn=_enterSubmit(sc); if(btn){ ev.preventDefault(); el.blur(); btn.click(); }
+});
 document.addEventListener("DOMContentLoaded",function(){ try{ document.querySelectorAll("input:not([type=checkbox]):not([type=radio]):not([type=hidden]),textarea").forEach(function(e){ e.setAttribute("autocapitalize","none"); e.setAttribute("autocorrect","off"); e.setAttribute("spellcheck","false"); }); var _im={suId:"text",suNick:"text",suPw:"text",loginId:"text",loginPw:"text"}; Object.keys(_im).forEach(function(id){ var e=document.getElementById(id); if(e) e.setAttribute("inputmode",_im[id]); }); }catch(e){}   /* 5번방 09.21 ②: 첫 글자 대문자·자동수정 금지(전역) */
   try{ if(_isNativeTabs()&&Capacitor.Plugins&&Capacitor.Plugins.NativeTabs) document.body.classList.add("native-tabs"); }catch(e){}
   try{ if(_isNativeTabs()){ var _vp=document.querySelector('meta[name="viewport"]'); if(_vp) _vp.setAttribute("content","width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"); } }catch(e){}   /* 5번방 09.21 ①: iOS 웹뷰 입력 포커스 자동 줌 금지(폰트 14px<16px 원인), 앱에서만 */ });   /* 5번방 09.17 안전장치: 네이티브 탭바 플러그인 실재 시에만 웹 탭 숨김 */
@@ -8542,6 +8555,7 @@ function syncMajorAvail(){
 ["tgtUniv","tgtMajor"].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener("keydown",e=>{
   if(e.key==="Enter"){ e.preventDefault();
     document.querySelectorAll(".ac-list.open").forEach(l=>{ l.classList.remove("open"); l.innerHTML=""; });
+    if(id==="tgtUniv"){ var _m=document.getElementById("tgtMajor"); if(_m){ _m.focus(); return; } }   /* 5번방 09.21: 학교 → 학과로 이동, 학과에서 실행 */
     if(!(document.getElementById("tgtBtn")||{}).disabled) runTarget(); } }); });
 (()=>{ const el=document.getElementById("majorKw"); if(el) el.addEventListener("keydown",e=>{
   if(e.key==="Enter"){ e.preventDefault();
