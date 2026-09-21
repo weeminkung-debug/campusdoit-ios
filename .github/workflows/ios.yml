@@ -156,9 +156,9 @@ jobs:
               return cob,lum//max(n,1)
           S=lambda n: f'smoke/{n}.png'; R=[]
           def item(no,name,ok,detail): R.append((no,name,ok,detail))
-          c,l=band(S('00_splash_1s')); item(1,'스플래시 중 탭바 미노출', c<150, f'cobalt={c}')
           try: hj=json.load(open('smoke/smoke_home.json')); sh=hj.get('splashHideAt',-1); rv=hj.get('revealAt',-1)
           except Exception: sh=rv=-1
+          c,l=band(S('00_splash_1s')); item(1,'스플래시 중 탭바 미노출(표시 시각 ≥ 스플래시 종료 시각)', sh>0 and rv>=sh, f'splashHide={sh}s reveal={rv}s (0.3s 캡처 cobalt={c}, 캡처 지연 ~1s라 참고값)')
           cf,_=band(S('00_home_first')); item(1.5,'홈 등장 직후 0.3s 탭바 + 스플래시 종료와 동시(≤0.15s)', cf>=200 and sh>0 and rv>0 and 0<=rv-sh<=0.15, f'cobalt={cf} splashHide={sh}s reveal={rv}s')
           c8,l8=band(S('01_home_8s')); c15,l15=band(S('01_home_15s')); item(2,'홈 8·15초 로드+탭바', c8>=200 and c15>=200, f'cobalt 8s={c8} 15s={c15}')
           tabs=['cat','score','home','sched','my']; lt={k:band(S(f'02_light_{k}')) for k in tabs}; dk={k:band(S(f'02_dark_{k}')) for k in tabs}
