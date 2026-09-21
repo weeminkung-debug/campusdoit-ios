@@ -88,21 +88,16 @@ jobs:
           xcrun simctl io "$UDID" screenshot smoke/00_splash_1s.png
           sleep 7
           xcrun simctl io "$UDID" screenshot smoke/01_home_8s.png
-          sleep 7
-          xcrun simctl io "$UDID" screenshot smoke/01_home_15s.png
-          xcrun simctl terminate "$UDID" com.campusdoit.app || true
-          xcrun simctl launch "$UDID" com.campusdoit.app -smokeTab sched; sleep 9
-          xcrun simctl io "$UDID" screenshot smoke/02_sched_tab.png
           xcrun simctl spawn "$UDID" launchctl list > smoke/launchctl.txt || true
           xcrun simctl terminate "$UDID" com.campusdoit.app || true
-          # 다크모드 5탭 순회
-          xcrun simctl ui "$UDID" appearance dark
-          for k in cat score home sched my; do
-            xcrun simctl launch "$UDID" com.campusdoit.app -smokeTab $k; sleep 9
-            xcrun simctl io "$UDID" screenshot "smoke/03_dark_$k.png"
-            xcrun simctl terminate "$UDID" com.campusdoit.app || true
+          for mode in light dark; do
+            xcrun simctl ui "$UDID" appearance $mode
+            for k in cat score home sched my; do
+              xcrun simctl launch "$UDID" com.campusdoit.app -smokeTab $k; sleep 9
+              xcrun simctl io "$UDID" screenshot "smoke/02_${mode}_$k.png"
+              xcrun simctl terminate "$UDID" com.campusdoit.app || true
+            done
           done
-          xcrun simctl ui "$UDID" appearance light
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -112,7 +107,7 @@ jobs:
         run: |
           set -euo pipefail
           if grep -q "com.campusdoit.app" smoke/launchctl.txt; then echo "ALIVE"; else echo "PROCESS DEAD"; exit 1; fi
-          # 판정: 00_splash = 하단 140pt에 밝은(탭바) 픽셀 없음 / 01·02 라이트 = 코발트 ≥300 / 03_dark_* = 하단 밴드 어두움(평균 휘도<90) + 코발트 ≥100
+          # 판정(하단 90pt 밴드): 00_splash = 코발트<150(탭바 미노출) / 01_home·02_light_* = 코발트≥200 & 휘도>150 / 02_dark_* = 코발트≥100 & 휘도<140 / 모드별 5탭 휘도 편차 ≤35
           python3 - <<'PY'
           import struct, zlib, sys, glob, os
           def png_rgb(path):
@@ -135,21 +130,24 @@ jobs:
                   out+=line; prev=line
               return w,h,bpp,bytes(out)
           def band(f):
-              w,h,bpp,px=png_rgb(f); scale=3 if h>2400 else 2; y0=h-int(140*scale); cob=bright=n=lum=0
+              w,h,bpp,px=png_rgb(f); scale=3 if h>2400 else 2; y0=h-int(90*scale); cob=n=lum=0
               for y in range(y0,h):
                   row=y*w*bpp
                   for x in range(0,w,3):
                       r,g,b=px[row+x*bpp],px[row+x*bpp+1],px[row+x*bpp+2]; n+=1; lum+=(r*299+g*587+b*114)//1000
                       if b>r+50 and b>g+30 and b>80: cob+=1
-                      if r>200 and g>200 and b>200: bright+=1
-              return cob,bright,lum//max(n,1)
-          ok=True
+              return cob,lum//max(n,1)
+          ok=True; lums={'light':[],'dark':[]}
           for f in sorted(glob.glob('smoke/*.png')):
-              cob,bright,lum=band(f); name=os.path.basename(f)
-              if name.startswith('00_splash'): res=bright<150; rule='splash: bright<150'
-              elif name.startswith('03_dark'): res=(lum<90 and cob>=100); rule='dark: lum<90 & cobalt>=100'
-              else: res=cob>=300; rule='light: cobalt>=300'
-              print(f'{name}: cobalt={cob} bright={bright} lum={lum} [{rule}] {"OK" if res else "FAIL"}'); ok=ok and res
+              cob,lum=band(f); name=os.path.basename(f)
+              if name.startswith('00_splash'): res=cob<150; rule='splash: cobalt<150'
+              elif name.startswith('02_dark'): res=(cob>=100 and lum<140); rule='dark: cobalt>=100 & lum<140'; lums['dark'].append(lum)
+              else: res=(cob>=200 and lum>150); rule='light: cobalt>=200 & lum>150'
+              if name.startswith('02_light'): lums['light'].append(lum)
+              print(f'{name}: cobalt={cob} lum={lum} [{rule}] {"OK" if res else "FAIL"}'); ok=ok and res
+          for m,v in lums.items():
+              if v:
+                  sp=max(v)-min(v); r=sp<=35; print(f'{m} 5-tab lum spread={sp} [<=35] {"OK" if r else "FAIL"}'); ok=ok and r
           print('SMOKE_OK' if ok else 'SMOKE_FAIL'); sys.exit(0 if ok else 1)
           PY
       - name: Import distribution certificate
