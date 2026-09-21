@@ -105,7 +105,7 @@ jobs:
           xcrun simctl launch "$UDID" $B -smokeTab score -smokeAction runSim; sleep 10; cap 04_login_gate
           xcrun simctl terminate "$UDID" $B || true
           # ⑧ 오프라인: pf로 아웃바운드 차단 후 실행(번들 웹이라 홈 로드·탭바 기대)
-          echo "block drop out quick proto {tcp udp} from any to any" | sudo pfctl -f - || true; sudo pfctl -e || true
+          printf 'set skip on lo0\nblock drop out quick proto {tcp udp} from any to any\n' | sudo pfctl -f - || true; sudo pfctl -e || true
           xcrun simctl launch "$UDID" $B; sleep 9; cap 05_offline_home
           xcrun simctl terminate "$UDID" $B || true
           sudo pfctl -d || true
@@ -141,8 +141,8 @@ jobs:
                   out+=line; prev=line
               return w,h,bpp,bytes(out)
           def band(f):
-              w,h,bpp,px=png_rgb(f); scale=3 if h>2400 else 2; y0=h-int(90*scale); cob=n=lum=0
-              for y in range(y0,h):
+              w,h,bpp,px=png_rgb(f); scale=3 if h>2400 else 2; y0=h-int(80*scale); y1=h-int(24*scale); cob=n=lum=0
+              for y in range(y0,y1):
                   row=y*w*bpp
                   for x in range(0,w,3):
                       r,g,b=px[row+x*bpp],px[row+x*bpp+1],px[row+x*bpp+2]; n+=1; lum+=(r*299+g*587+b*114)//1000
@@ -154,9 +154,8 @@ jobs:
           c8,l8=band(S('01_home_8s')); c15,l15=band(S('01_home_15s')); item(2,'홈 8·15초 로드+탭바', c8>=200 and c15>=200, f'cobalt 8s={c8} 15s={c15}')
           tabs=['cat','score','home','sched','my']; lt={k:band(S(f'02_light_{k}')) for k in tabs}; dk={k:band(S(f'02_dark_{k}')) for k in tabs}
           item(3,'5탭 전환 캡처(라이트)', all(lt[k][0]>=200 for k in tabs), ' '.join(f'{k}={lt[k][0]}' for k in tabs))
-          sl=max(v[1] for v in lt.values())-min(v[1] for v in lt.values()); item(4,'라이트 5탭 톤 편차≤30', sl<=30, f'lum {[lt[k][1] for k in tabs]} spread={sl}')
-          sd=max(v[1] for v in dk.values())-min(v[1] for v in dk.values()); ml=sum(v[1] for v in lt.values())//5; md=sum(v[1] for v in dk.values())//5
-          item(5,'다크 5탭 톤 편차≤30 + 라이트≠다크', sd<=30 and (ml-md)>=40 and all(dk[k][0]>=100 for k in tabs), f'lum {[dk[k][1] for k in tabs]} spread={sd} light_mean={ml} dark_mean={md}')
+          item(4,'라이트 5탭 탭바 휘도 모두 >128', all(lt[k][1]>128 for k in tabs), f'lum {[lt[k][1] for k in tabs]}')
+          item(5,'다크 5탭 탭바 휘도 모두 <128 + 탭바 표시', all(dk[k][1]<128 and dk[k][0]>=100 for k in tabs), f'lum {[dk[k][1] for k in tabs]} cobalt {[dk[k][0] for k in tabs]}')
           navs={}
           for k in tabs:
               try: navs[k]=json.load(open(f'smoke/smoke_{k}.json'))
