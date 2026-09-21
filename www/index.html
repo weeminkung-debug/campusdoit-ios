@@ -163,7 +163,7 @@
   .imtab.on{color:#fff;background:var(--red);border-color:var(--red);box-shadow:0 3px 10px rgba(211,58,58,.24);}
   .ifield{display:flex;flex-direction:column;gap:8px;margin:0 0 8px;}
   .ifield-in{width:100%;box-sizing:border-box;font-size:14px;padding:8px 16px;border:1.5px solid #E0DED4;border-radius:999px;font-family:inherit;transition:border-color .15s,box-shadow .15s;}
-  .ifield-in:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px rgba(211,58,58,.12);}
+  .ifield-in:focus{outline:none;border-color:#E0DED4;box-shadow:none;}   /* 5번방 09.21 ③: 포커스 시 테두리 색 변화 없음 */
   .ifield-row{display:flex;gap:8px;}
   .ifield-row .ifield-in{flex:1;}
   .tgt-btn{padding:8px 16px;font-family:inherit;font-size:14px;font-weight:700;color:#fff;background:var(--red);border:none;border-radius:12px;cursor:pointer;white-space:nowrap;}
@@ -630,8 +630,8 @@ form.home-search:has(.ac-list.open){border-radius:18px 18px 0 0!important;border
   .field-msg{font-size:12px;margin:-4px 4px 0;line-height:1.4;}
   .field-err{color:#9B3F1C;}   /* [b592 5번방②] 위험 밴드 딥 텍스트 */
   .field-ok{color:#1E9E6A;}
-  .ifield-in.err{border-color:#D64545;}
-  .ifield-in.ok{border-color:#1E9E6A;}
+  .ifield-in.err:not(:focus){border-color:#D64545;}   /* ③ 무효 표시 = 입력 완료(비포커스) 후에만 */
+  .ifield-in.ok:not(:focus){border-color:#1E9E6A;}
   .secq-guide{font-size:12px;color:var(--muted);margin:0 4px 4px;line-height:1.6;}
   .secq-label{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--ink);margin:8px 4px 0;}
   .secq-ic{flex:none;}
@@ -5601,8 +5601,8 @@ async function checkDup(kind){
   if(kind==="acnick" && typeof CURRENT_USER!=="undefined" && CURRENT_USER && CURRENT_USER.nickname===v){ el.classList.remove("ok","err"); errEl.style.display="none"; if(_btn) _btn.disabled=false; return; }   /* 현재 닉네임 그대로 = 판정 생략 */
   var r=await apiCall("/api/v1/auth/check?"+C.param+"="+encodeURIComponent(v), {});
   if((el.value||"").trim()!==v) return;                 /* 입력이 그새 바뀜 → 응답 폐기 */
-  if(!r.ok || !r.data){ return; }                        /* 네트워크 실패 시 조용히(제출 때 재검증) */
-  if(r.data.available){
+  if(!r.ok || !r.data || typeof r.data.available!=="boolean"){ el.classList.remove("ok","err"); if(errEl) errEl.style.display="none"; if(_btn) _btn.disabled=false; return; }   /* 5번방 09.21 ②: available 불리언 외(네트워크·CORS·비정상 응답)는 "사용 중" 오표시 금지, 제출 때 재검증 */
+  if(r.data.available===true){
     el.classList.add("ok"); el.classList.remove("err");
     if(C.okKey){ okEl.classList.add("ok"); okEl.textContent=t(C.okKey); okEl.style.display=""; }
     else { if(errEl) errEl.style.display="none"; if(okEl) okEl.style.display="block"; }
@@ -7504,7 +7504,8 @@ function setNavActive(key){
 /* ── iOS 네이티브 탭바 셸(5번방 확정 A, 09.16): iOS 앱에서만 웹 하단 탭 숨김·라우트 브리지. 안드로이드·웹은 현행 ── */
 function _isNativeTabs(){ try{ return !!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform()&&Capacitor.getPlatform&&Capacitor.getPlatform()==="ios"); }catch(e){ return false; } }
 window.__nativeTab=function(key){ try{ ({cat:goCat,score:goApp,home:goHome,sched:goSchedule,my:goMy})[key](); }catch(e){} };
-document.addEventListener("DOMContentLoaded",function(){ try{ if(_isNativeTabs()&&Capacitor.Plugins&&Capacitor.Plugins.NativeTabs) document.body.classList.add("native-tabs"); }catch(e){} });   /* 5번방 09.17 안전장치: 네이티브 탭바 플러그인 실재 시에만 웹 탭 숨김 */
+document.addEventListener("DOMContentLoaded",function(){ try{ if(_isNativeTabs()&&Capacitor.Plugins&&Capacitor.Plugins.NativeTabs) document.body.classList.add("native-tabs"); }catch(e){}
+  try{ if(_isNativeTabs()){ var _vp=document.querySelector('meta[name="viewport"]'); if(_vp) _vp.setAttribute("content","width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"); } }catch(e){}   /* 5번방 09.21 ①: iOS 웹뷰 입력 포커스 자동 줌 금지(폰트 14px<16px 원인), 앱에서만 */ });   /* 5번방 09.17 안전장치: 네이티브 탭바 플러그인 실재 시에만 웹 탭 숨김 */
 function syncLangSeg(){ document.querySelectorAll(".lang-seg").forEach(seg=>{
   const sp=seg.querySelectorAll("span"); if(sp.length<2) return;
   sp[0].classList.toggle("on",LANG==="ko"); sp[1].classList.toggle("on",LANG==="en"); }); }
