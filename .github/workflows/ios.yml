@@ -1,6 +1,7 @@
 name: iOS TestFlight
 on:
-  push: { tags: ['ios-v*'] }
+  push:
+    branches: [main]
   workflow_dispatch: {}
 concurrency: { group: ios-build, cancel-in-progress: true }
 jobs:
@@ -72,44 +73,54 @@ jobs:
           cd ios/App
           pod install --repo-update
           diff Podfile.lock Pods/Manifest.lock && echo "Pods in sync"
-      - name: Simulator smoke (build → launch → screenshots → alive check)
+      - name: Simulator smoke (9-item shell acceptance)
         run: |
           set -euo pipefail
           UDID=$(xcrun simctl list devices available -j | python3 -c 'import sys,json;d=json.load(sys.stdin);c=[x for k,v in d["devices"].items() if "iOS" in k for x in v if x["name"].startswith("iPhone")];c.sort(key=lambda x:x["name"]);print(c[-1]["udid"])')
-          echo "sim=$UDID"
+          echo "sim=$UDID"; echo "$UDID" > smoke_udid.txt
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
-          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator -destination "id=$UDID" -derivedDataPath build/sim CODE_SIGNING_ALLOWED=NO build | tail -20
-          APP=$(find build/sim -name "App.app" -path "*iphonesimulator*" | head -1); echo "app=$APP"
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator -destination "id=$UDID" -derivedDataPath build/sim CODE_SIGNING_ALLOWED=NO build | tail -5
+          APP=$(find build/sim -name "App.app" -path "*iphonesimulator*" | head -1)
           xcrun simctl install "$UDID" "$APP"
           mkdir -p smoke
+          B=com.campusdoit.app
+          cap(){ xcrun simctl io "$UDID" screenshot "smoke/$1.png"; }
           xcrun simctl ui "$UDID" appearance light
-          xcrun simctl launch "$UDID" com.campusdoit.app; sleep 1
-          xcrun simctl io "$UDID" screenshot smoke/00_splash_1s.png
-          sleep 7
-          xcrun simctl io "$UDID" screenshot smoke/01_home_8s.png
+          # ① ② ⑦
+          xcrun simctl launch "$UDID" $B; sleep 1; cap 00_splash_1s
+          sleep 7; cap 01_home_8s; sleep 7; cap 01_home_15s
           xcrun simctl spawn "$UDID" launchctl list > smoke/launchctl.txt || true
-          xcrun simctl terminate "$UDID" com.campusdoit.app || true
+          xcrun simctl terminate "$UDID" $B || true
+          # ③ ④ ⑤ ⑥ — 라이트/다크 × 5탭 (상태 JSON은 앱 Documents에 기록)
           for mode in light dark; do
             xcrun simctl ui "$UDID" appearance $mode
             for k in cat score home sched my; do
-              xcrun simctl launch "$UDID" com.campusdoit.app -smokeTab $k; sleep 9
-              xcrun simctl io "$UDID" screenshot "smoke/02_${mode}_$k.png"
-              xcrun simctl terminate "$UDID" com.campusdoit.app || true
+              xcrun simctl launch "$UDID" $B -smokeTab $k; sleep 9; cap "02_${mode}_$k"
+              xcrun simctl terminate "$UDID" $B || true
             done
           done
+          xcrun simctl ui "$UDID" appearance light
+          # ⑨ 로그인 게이트: 점수진단 탭 → 88 입력 → 실행 → loginView
+          xcrun simctl launch "$UDID" $B -smokeTab score -smokeAction runSim; sleep 10; cap 04_login_gate
+          xcrun simctl terminate "$UDID" $B || true
+          # ⑧ 오프라인: pf로 아웃바운드 차단 후 실행(번들 웹이라 홈 로드·탭바 기대)
+          echo "block drop out quick proto {tcp udp} from any to any" | sudo pfctl -f - || true; sudo pfctl -e || true
+          xcrun simctl launch "$UDID" $B; sleep 9; cap 05_offline_home
+          xcrun simctl terminate "$UDID" $B || true
+          sudo pfctl -d || true
+          # 상태 JSON 수집
+          DATA=$(xcrun simctl get_app_container "$UDID" $B data); cp "$DATA"/Documents/smoke_*.json smoke/ 2>/dev/null || true; ls smoke
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: simulator-smoke
           path: smoke/*
-      - name: Smoke judge (alive + tab bar pixels)
+      - name: Smoke judge (9 items → Job Summary)
         run: |
           set -euo pipefail
-          if grep -q "com.campusdoit.app" smoke/launchctl.txt; then echo "ALIVE"; else echo "PROCESS DEAD"; exit 1; fi
-          # 판정(하단 90pt 밴드): 00_splash = 코발트<150(탭바 미노출) / 01_home·02_light_* = 코발트≥200 & 휘도>150 / 02_dark_* = 코발트≥100 & 휘도<140 / 모드별 5탭 휘도 편차 ≤35
           python3 - <<'PY'
-          import struct, zlib, sys, glob, os
+          import struct, zlib, sys, glob, os, json
           def png_rgb(path):
               d=open(path,'rb').read(); pos=8; w=h=0; idat=b''
               while pos<len(d):
@@ -137,18 +148,28 @@ jobs:
                       r,g,b=px[row+x*bpp],px[row+x*bpp+1],px[row+x*bpp+2]; n+=1; lum+=(r*299+g*587+b*114)//1000
                       if b>r+50 and b>g+30 and b>80: cob+=1
               return cob,lum//max(n,1)
-          ok=True; lums={'light':[],'dark':[]}
-          for f in sorted(glob.glob('smoke/*.png')):
-              cob,lum=band(f); name=os.path.basename(f)
-              if name.startswith('00_splash'): res=cob<150; rule='splash: cobalt<150'
-              elif name.startswith('02_dark'): res=(cob>=100 and lum<140); rule='dark: cobalt>=100 & lum<140'; lums['dark'].append(lum)
-              else: res=(cob>=200 and lum>150); rule='light: cobalt>=200 & lum>150'
-              if name.startswith('02_light'): lums['light'].append(lum)
-              print(f'{name}: cobalt={cob} lum={lum} [{rule}] {"OK" if res else "FAIL"}'); ok=ok and res
-          for m,v in lums.items():
-              if v:
-                  sp=max(v)-min(v); r=sp<=35; print(f'{m} 5-tab lum spread={sp} [<=35] {"OK" if r else "FAIL"}'); ok=ok and r
-          print('SMOKE_OK' if ok else 'SMOKE_FAIL'); sys.exit(0 if ok else 1)
+          S=lambda n: f'smoke/{n}.png'; R=[]
+          def item(no,name,ok,detail): R.append((no,name,ok,detail))
+          c,l=band(S('00_splash_1s')); item(1,'스플래시 1초 탭바 미노출', c<150, f'cobalt={c}')
+          c8,l8=band(S('01_home_8s')); c15,l15=band(S('01_home_15s')); item(2,'홈 8·15초 로드+탭바', c8>=200 and c15>=200, f'cobalt 8s={c8} 15s={c15}')
+          tabs=['cat','score','home','sched','my']; lt={k:band(S(f'02_light_{k}')) for k in tabs}; dk={k:band(S(f'02_dark_{k}')) for k in tabs}
+          item(3,'5탭 전환 캡처(라이트)', all(lt[k][0]>=200 for k in tabs), ' '.join(f'{k}={lt[k][0]}' for k in tabs))
+          sl=max(v[1] for v in lt.values())-min(v[1] for v in lt.values()); item(4,'라이트 5탭 톤 편차≤30', sl<=30, f'lum {[lt[k][1] for k in tabs]} spread={sl}')
+          sd=max(v[1] for v in dk.values())-min(v[1] for v in dk.values()); ml=sum(v[1] for v in lt.values())//5; md=sum(v[1] for v in dk.values())//5
+          item(5,'다크 5탭 톤 편차≤30 + 라이트≠다크', sd<=30 and (ml-md)>=40 and all(dk[k][0]>=100 for k in tabs), f'lum {[dk[k][1] for k in tabs]} spread={sd} light_mean={ml} dark_mean={md}')
+          navs={}
+          for k in tabs:
+              try: navs[k]=json.load(open(f'smoke/smoke_{k}.json'))
+              except Exception: navs[k]=None
+          item(6,'웹 하단탭 비노출(5탭)', all(navs[k] and navs[k].get('nav')=='none' for k in tabs), ' '.join(f"{k}={navs[k].get('nav') if navs[k] else 'nojson'}" for k in tabs))
+          alive=os.path.exists('smoke/launchctl.txt') and 'com.campusdoit.app' in open('smoke/launchctl.txt').read(); item(7,'프로세스 생존', alive, 'launchctl list')
+          co,lo=band(S('05_offline_home')); item(8,'오프라인 실행(번들 웹) 홈+탭바', co>=200, f'cobalt={co}')
+          try: g=json.load(open('smoke/smoke_score.json')); v=g.get('view')
+          except Exception: v='nojson'
+          cg,_=band(S('04_login_gate')); item(9,'로그인 게이트(점수진단 실행→loginView)', v=='loginView', f'view={v}')
+          ok=all(r[2] for r in R)
+          md='| # | 항목 | 결과 | 수치 |\n|---|---|---|---|\n'+'\n'.join(f'| {n} | {nm} | {"✅ PASS" if o else "❌ FAIL"} | {d} |' for n,nm,o,d in R)+f'\n\n**{"SMOKE_OK" if ok else "SMOKE_FAIL"}**\n'
+          open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## iOS 셸 스모크 9항\n'+md); print(md); sys.exit(0 if ok else 1)
           PY
       - name: Import distribution certificate
         run: |
