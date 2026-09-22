@@ -4191,8 +4191,8 @@ async function apiCall(path, opts){
   if(opts.auth){ const tk=authToken(); if(tk) headers["Authorization"]="Bearer "+tk; }
   try{ if(_isNativeTabs()&&APP_HDR_SECRET&&APP_HDR_SECRET.indexOf("__")!==0) headers["X-CampusDoIt-App"]=APP_HDR_SECRET; }catch(e){}   /* 5번방 09.21 ⓐ: iOS 앱 요청 = Turnstile 면제 헤더(빌드 시 주입) */
   let res;
-  try{ res=await fetch(API_BASE+path, {method:opts.method||"GET", headers:headers, body:opts.body?JSON.stringify(opts.body):undefined}); }
-  catch(e){ return {ok:false, error:t("common.err_net"), status:0}; }
+  try{ res=await fetch(API_BASE+path, {method:opts.method||"GET", headers:headers, body:opts.body?JSON.stringify(opts.body):undefined, signal:opts.signal}); }
+  catch(e){ return {ok:false, error:t("common.err_net"), status:0, aborted:(e&&e.name==="AbortError")}; }
   let j={}; try{ j=await res.json(); }catch(e){}
   if(res.status===401 && opts.auth){ logoutOn401(res); }   /* [F5-03] 401 공통 처리 기본 동작화 — 전 경로 일괄 */
   if(!res.ok || j.ok===false){ return {ok:false, error:(j&&j.error)||"오류가 발생했어요.", status:res.status, data:j}; }
@@ -5593,6 +5593,7 @@ function closeAuthDone(){ var o=document.getElementById("authDoneOverlay"); if(o
 function authFieldErr(inputId, errId){ var i=document.getElementById(inputId), e=document.getElementById(errId); if(i){i.classList.add("err");i.classList.remove("ok");} if(e)e.style.display="block"; }
 /* ===== 회원가입 실시간 검증 (4번방 계약: GET /auth/check?login_id= | ?nickname=) ===== */
 var _dupT=null;
+var _dupAC={};
 var ID_RE=/^[A-Za-z0-9_]{4,30}$/, NICK_RE=/^.{2,20}$/;   /* 4번방 서버 규칙 동일(09.21): 아이디 영문·숫자·밑줄 4~30 / 닉네임 2~20자 */
 function _fmtMsg(kind){   /* 입력 즉시 형식 메시지. true=형식 통과 */
   var C=(kind==="id")?{inp:"suId",err:"suIdErr",ok:"suIdOk",re:ID_RE,rule:"auth.id_rule",fmtOk:"auth.id_fmt_ok"}:(kind==="nick")?{inp:"suNick",err:"suNickErr",ok:"suNickOk",re:NICK_RE,rule:"auth.nick_rule",fmtOk:"auth.nick_fmt_ok"}:null;
@@ -5603,7 +5604,7 @@ function _fmtMsg(kind){   /* 입력 즉시 형식 메시지. true=형식 통과 
   el.classList.remove("ok","err"); if(errEl){ errEl.textContent=t(C.fmtOk); errEl.classList.add("field-neutral"); errEl.style.display="block"; } if(okEl) okEl.style.display="none";   /* 5번방 09.22: 형식 통과 = 중립 "형식 확인됨", 사용 가능/사용 중은 서버 응답 후만 */
   return true;
 }
-function checkDupDebounced(kind){ clearTimeout(_dupT); if(!_fmtMsg(kind)) return; _dupT=setTimeout(function(){ checkDup(kind); }, 350); }
+function checkDupDebounced(kind){ clearTimeout(_dupT); if(!_fmtMsg(kind)) return; checkDup(kind); }   /* 5번방 09.22: 디바운스 제거 — 입력마다 즉시 요청, 직전 요청 abort */
 async function checkDup(kind){
   var C=(kind==="id")
     ? {inp:"suId", err:"suIdErr", ok:"suIdOk", param:"login_id", dupKey:"auth.dup_id"}
@@ -5617,7 +5618,10 @@ async function checkDup(kind){
   var _btn=C.btn?document.getElementById(C.btn):null;
   if(!v){ el.classList.remove("ok","err"); if(errEl)errEl.style.display="none"; if(okEl)okEl.style.display="none"; if(_btn) _btn.disabled=false; return; }
   if(kind==="acnick" && typeof CURRENT_USER!=="undefined" && CURRENT_USER && CURRENT_USER.nickname===v){ el.classList.remove("ok","err"); errEl.style.display="none"; if(_btn) _btn.disabled=false; return; }   /* 현재 닉네임 그대로 = 판정 생략 */
-  var r=await apiCall("/api/v1/auth/check?"+C.param+"="+encodeURIComponent(v), {});
+  try{ if(_dupAC[kind]) _dupAC[kind].abort(); }catch(e){} var _ac=new AbortController(); _dupAC[kind]=_ac; var _t0=Date.now();
+  var r=await apiCall("/api/v1/auth/check?"+C.param+"="+encodeURIComponent(v), {signal:_ac.signal});
+  if(_ac.signal.aborted||r.aborted) return;   /* 더 최신 입력의 요청이 있으면 이 응답은 버림 */
+  window.__dupMs=Date.now()-_t0;
   if((el.value||"").trim()!==v) return;                 /* 입력이 그새 바뀜 → 응답 폐기 */
   if(!r.ok || !r.data || typeof r.data.available!=="boolean"){ if(_btn) _btn.disabled=false; return; }   /* 응답 미도달·비정상 = 형식 기준 유효 표시 유지(5번방 09.21) */   /* 5번방 09.21 ②: available 불리언 외(네트워크·CORS·비정상 응답)는 "사용 중" 오표시 금지, 제출 때 재검증 */
   if(r.data.available===true){
