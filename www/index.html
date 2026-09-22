@@ -4166,7 +4166,7 @@ html body.native-tabs nav#bottomNav.bottom-nav{display:none!important;}   /* iOS
    ===================================================================== */
 
 /* 로컬 4번방 서버. 같은 PC면 jinhak_room4 에서 python api_server.py 켜두면 됨. */
-const API_BASE = "";   // 4번방 Railway 라이브 (로컬테스트 시 http://localhost:8800)
+const API_BASE = (function(){ try{ if(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform()) return "https://campusdoit.com"; }catch(e){} return ""; })();   // 웹 = 동일 출처 상대경로 / 네이티브 앱(capacitor://localhost) = 절대 주소 (5번방 09.22: 상대경로가 앱 번들로 가서 404이던 원인)
 
 /* ═══ auth 인프라 (4번방 통합 계약) ═══ */
 const TOKEN_KEY="doit_token_v1";
