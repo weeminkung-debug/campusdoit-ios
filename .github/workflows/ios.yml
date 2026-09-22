@@ -197,6 +197,10 @@ jobs:
           try: T=json.load(open('smoke/smoke_my.json')); ts=T.get('ts') or {}; tv=T.get('view')
           except Exception: ts={}; tv='nojson'
           item(11,'iOS Turnstile 면제: 가입 화면 진입 + 위젯 미렌더 + 앱 헤더 전송', tv=='signupView' and ts.get('iframes',0)==0 and ts.get('exempt',0)>=1 and ts.get('hdr')==True, f'view={tv} {ts}')
+          try: A=T.get('api') or {}
+          except Exception: A={}
+          okA=A.get('status')==200 and '"available": false' in (A.get('body','').replace(' ','').replace('"available":false','"available": false'))
+          item(12,'네이티브 auth/check 도달(200 + available=false, test111)', okA, f'{A}')
           ok=all(r[2] for r in R)
           md='| # | 항목 | 결과 | 수치 |\n|---|---|---|---|\n'+'\n'.join(f'| {n} | {nm} | {"✅ PASS" if o else "❌ FAIL"} | {d} |' for n,nm,o,d in R)+f'\n\n**{"SMOKE_OK" if ok else "SMOKE_FAIL"}**\n'
           open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## iOS 셸 스모크 9항\n'+md); print(md); sys.exit(0 if ok else 1)
