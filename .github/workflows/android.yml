@@ -132,7 +132,17 @@ jobs:
           sed -i -E "s/versionName \"[^\"]*\"/versionName \"$V\"/; s/versionCode [0-9]+/versionCode $VC/" android/app/build.gradle
           grep -n "versionName\|versionCode\|play-services-ads\|material" android/app/build.gradle | head
       - name: Build debug APK
-        run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon -q && ls app/build/outputs/apk/debug/
+        run: |
+          cd android && chmod +x gradlew
+          set +e
+          ./gradlew assembleDebug --no-daemon --stacktrace > /tmp/gradle.log 2>&1
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            tail -c 3500 /tmp/gradle.log | sed 's/%/%25/g' | awk 'BEGIN{printf "::error title=gradle-fail::"} {printf "%s%%0A",$0} END{print ""}'
+            grep -iE "error:|what went wrong|caused by|FAILURE:|could not" /tmp/gradle.log | head -20
+            exit $rc
+          fi
+          ls app/build/outputs/apk/debug/
       - name: Emulator smoke (5항)
         uses: reactivecircus/android-emulator-runner@v2
         with:

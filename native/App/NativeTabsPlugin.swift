@@ -122,7 +122,8 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
                 self?.bridge?.webView?.evaluateJavaScript(js) { res, _ in
                     guard let self = self, var str = res as? String, let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
                     str = String(str.dropLast()) + String(format: ",\"splashHideAt\":%.3f,\"revealAt\":%.3f}", self.splashHideAt, self.revealAt)
-                    try? str.write(to: dir.appendingPathComponent("smoke_\(key).json"), atomically: true, encoding: .utf8)
+                    let fname = (action == "adsSmoke") ? "smoke_ads.json" : "smoke_\(key).json"   // 광고 캡처는 별도 파일(runSim의 score 캡처 보존)
+                    try? str.write(to: dir.appendingPathComponent(fname), atomically: true, encoding: .utf8)
                 }
             }
         }

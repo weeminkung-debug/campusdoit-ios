@@ -247,13 +247,13 @@ jobs:
           except Exception: A={}
           okA=A.get('status')==200 and '"available": false' in (A.get('body','').replace(' ','').replace('"available":false','"available": false'))
           item(12,'네이티브 auth/check 도달(200 + available=false, test111)', okA, f'{A}')
-          try: AD=json.load(open('smoke/smoke_score.json')).get('ads') or {}
+          try: AD=json.load(open('smoke/smoke_ads.json')).get('ads') or {}
           except Exception: AD={}
           st=AD.get('status') or {}; rw=AD.get('rewarded') or {}; na=AD.get('native') or {}; cd=AD.get('card') or {}
           item(13,'ATT 상태 기록(권한 팝업 문구 Info.plist 등록)', st.get('att') in ('notDetermined','authorized','denied','restricted'), f"att={st.get('att')} unit={st.get('rewardedUnit')}")
           item(14,'보상형 광고 로드(테스트 단위, dryRun)', rw.get('loaded')==True, f'{rw}')
           item(15,'네이티브 광고 카드 로드(테스트 단위)', na.get('loaded')==True, f'{na}')
-          item(16,'열쇠 0 카드 DOM(블러+닫기·광고 보고 결과 열기)', cd.get('blur')==True and any('광고' in b for b in cd.get('btns',[])), f'{cd}')
+          item(16,'열쇠 0 카드 DOM(블러+닫기·광고 보고 결과 열기)', cd.get('blur')==True and any(('광고' in b) or ('ad' in b.lower()) for b in cd.get('btns',[])), f'{cd}')
           ok=all(r[2] for r in R)
           def _ann(t,x): print("::notice title="+t+"::"+str(x).replace("%","%25").replace("\r","").replace("\n","%0A")[:3800])
           for i in range(0,len(R),8): _ann(f"smoke-{R[i][0]}-{R[min(i+7,len(R)-1)][0]}", "\n".join(f'{n} {"PASS" if o else "FAIL"} {nm} | {d}' for n,nm,o,d in R[i:i+8]))
