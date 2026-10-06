@@ -163,12 +163,13 @@ jobs:
             run 03_my "--es smokeTab my" 10 my
             run 04_ads "--es smokeTab score --es smokeAction adsSmoke" 15 score
             ls -la smoke
-            adb logcat -d -s AndroidRuntime:E chromium:I Capacitor:I CapacitorConsole:I 2>/dev/null | tail -120 > smoke/logcat.txt || true
+            adb shell run-as $P ls -la files 2>/dev/null > smoke/_filesdir.txt || adb shell ls -la /sdcard/Android/data/$P/files 2>/dev/null > smoke/_filesdir.txt || true
+            adb logcat -d 2>/dev/null | grep -iE "campusdoit|AndroidRuntime|FATAL|Capacitor|chromium|MaterialComponents|BottomNavigation" | tail -150 > smoke/logcat.txt || true
             exit 0
       - name: Emulator diagnostics (logcat → annotation)
         if: always()
         run: |
-          for f in smoke/logcat.txt smoke/_installed.txt; do
+          for f in smoke/logcat.txt smoke/_installed.txt smoke/_filesdir.txt; do
             [ -f "$f" ] || continue
             tail -c 3500 "$f" | sed 's/%/%25/g' | awk -v t="$f" 'BEGIN{printf "::notice title=%s::",t} {printf "%s%%0A",$0} END{print ""}'
           done

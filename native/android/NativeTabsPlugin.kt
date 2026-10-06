@@ -5,6 +5,7 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.content.res.ColorStateList
+import android.view.ContextThemeWrapper
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
@@ -35,7 +36,8 @@ class NativeTabsPlugin : Plugin() {
     private fun install() {
         val act = activity ?: return
         val root = act.findViewById<ViewGroup>(android.R.id.content) ?: return
-        val v = BottomNavigationView(act)
+        val themed = ContextThemeWrapper(act, com.google.android.material.R.style.Theme_MaterialComponents_DayNight_NoActionBar)
+        val v = BottomNavigationView(themed)
         v.setBackgroundColor(Color.WHITE)
         val cobalt = Color.parseColor("#2B5BC4"); val gray = Color.parseColor("#8B8983")
         val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
