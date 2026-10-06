@@ -39,6 +39,7 @@ jobs:
           set -euo pipefail
           if [ -n "${ANDROID_KEYSTORE_B64:-}" ]; then
             echo "$ANDROID_KEYSTORE_B64" | base64 -d > release.keystore
+            set +e
             # --- 진단: 비번 비ASCII 여부 · 비번만으로 열리는지 · 실제 alias ---
             NA=$(printf '%s' "${ANDROID_KEYSTORE_PASSWORD:-}" | LC_ALL=C grep -qP '[^\x20-\x7E]' && echo "store-pw=NON-ASCII" || echo "store-pw=ascii")
             NAK=$(printf '%s' "${ANDROID_KEY_PASSWORD:-}" | LC_ALL=C grep -qP '[^\x20-\x7E]' && echo "key-pw=NON-ASCII" || echo "key-pw=ascii")
@@ -47,6 +48,7 @@ jobs:
             OPENS=$([ $LRC -eq 0 ] && echo "store-pw OPENS keystore" || echo "store-pw FAILS to open keystore (rc=$LRC)")
             printf '::notice title=keystore-diag::%s | %s | %s | aliases=[%s]%%0A' "$NA" "$NAK" "$OPENS" "$ALIASES"
             head -c 600 /tmp/ks.txt | sed 's/%/%25/g' | awk 'BEGIN{printf "::notice title=keystore-list::"}{printf "%s%%0A",$0}END{print ""}'
+            set -e
             echo "ready=1" >> "$GITHUB_OUTPUT"
           else
             echo "::error title=keystore::ANDROID_KEYSTORE_B64 secret 미등록 — 서명 불가"
