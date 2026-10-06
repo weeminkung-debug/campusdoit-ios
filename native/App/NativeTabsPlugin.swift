@@ -117,7 +117,7 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
                     }
                 }
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + (action == nil ? (key == "home" ? 9.0 : 6.0) : 9.0)) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + (action == "adsSmoke" ? 14.0 : (action == nil ? (key == "home" ? 9.0 : 6.0) : 9.0))) { [weak self] in
                 let js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:!!(document.body.classList.contains('native-tabs')), err:(window.__smokeErr||''), logged:(typeof isLoggedIn==='function'?isLoggedIn():null), layout:(window.__layout||null), api:(window.__apiCheck||null), ads:(window.__ads||null), ts:(function(){try{var f=document.querySelectorAll('#signupView iframe').length;var ex=document.querySelectorAll('#signupView [data-ts-exempt]').length;return {iframes:f,exempt:ex,origin:location.origin,hdr:(window.__hdrSent===true)}}catch(e){return {err:String(e)}}})()})"
                 self?.bridge?.webView?.evaluateJavaScript(js) { res, _ in
                     guard let self = self, var str = res as? String, let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }

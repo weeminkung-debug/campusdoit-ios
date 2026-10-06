@@ -166,7 +166,7 @@ jobs:
           # ⑪ Turnstile: 가입 화면 진입 후 위젯 토큰(네트워크 허용 전제)
           xcrun simctl launch "$UDID" $B -smokeTab my -smokeAction openSignup; sleep 12; cap 06_signup_turnstile
           xcrun simctl terminate "$UDID" $B || true; sleep 1
-          xcrun simctl launch "$UDID" $B -smokeTab score -smokeAction adsSmoke; sleep 14; cap 07_ads
+          xcrun simctl launch "$UDID" $B -smokeTab score -smokeAction adsSmoke; sleep 17; cap 07_ads
           xcrun simctl terminate "$UDID" $B || true
           # ⑧ 오프라인: pf로 아웃바운드 차단 후 실행(번들 웹이라 홈 로드·탭바 기대)
           IF=$(route -n get 8.8.8.8 2>/dev/null | awk '/interface:/{print $2}'); echo "block on $IF"
