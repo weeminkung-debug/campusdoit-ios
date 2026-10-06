@@ -26,7 +26,12 @@ jobs:
         with: { node-version: 20 }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
-      - uses: android-actions/setup-android@v3
+      - name: Android SDK (ubuntu-latest 내장) 라이선스 수락
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"; ls "$ANDROID_HOME/cmdline-tools" || true
+          SM=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
+          yes | "$SM" --licenses >/dev/null 2>&1 || true
+          "$SM" --list_installed 2>/dev/null | grep -E "build-tools|platforms;" | head -6 || true
       - run: npm ci || npm install
       - name: Keystore (B64 있으면 재사용 / 없으면 자동 생성 → Job Summary에 base64 출력)
         id: ks
