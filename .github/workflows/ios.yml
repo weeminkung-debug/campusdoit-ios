@@ -2,7 +2,11 @@ name: iOS TestFlight
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "TestFlight 업로드(Run workflow 전용 — push 자동 실행은 스모크 16항까지만)"
+        default: "true"
 concurrency: { group: ios-build, cancel-in-progress: true }
 jobs:
   build:
@@ -21,6 +25,10 @@ jobs:
       IOS_CERT_P12_B64: ${{ secrets.IOS_CERT_P12_B64 }}
       IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
       APP_HDR_SECRET: ${{ secrets.APP_HDR_SECRET }}
+      ADMOB_APP_ID_IOS: ${{ secrets.ADMOB_APP_ID_IOS }}
+      ADMOB_REWARDED_IOS: ${{ secrets.ADMOB_REWARDED_IOS }}
+      ADMOB_BANNER_IOS: ${{ secrets.ADMOB_BANNER_IOS }}
+      ADMOB_NATIVE_IOS: ${{ secrets.ADMOB_NATIVE_IOS }}
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
@@ -50,22 +58,29 @@ jobs:
       - name: Native tab bar shell (plugin overlay) + splash assets
         run: |
           set -euo pipefail
-          cp native/App/NativeTabsPlugin.swift ios/App/App/
+          cp native/App/NativeTabsPlugin.swift native/App/CampusAdsPlugin.swift ios/App/App/
           gem install xcodeproj -N
           ruby -e '
             require "xcodeproj"
             proj = Xcodeproj::Project.open("ios/App/App.xcodeproj")
             target = proj.targets.find { |t| t.name == "App" } or abort("App target not found")
             group = proj.main_group.groups.find { |g| g.path == "App" || g.name == "App" } or abort("App group not found")
-            f = "NativeTabsPlugin.swift"
-            unless group.files.any? { |x| x.path == f }
-              ref = group.new_reference(f)
-              target.source_build_phase.add_file_reference(ref, true)
+            ["NativeTabsPlugin.swift","CampusAdsPlugin.swift"].each do |f|
+              unless group.files.any? { |x| x.path == f }
+                ref = group.new_reference(f)
+                target.source_build_phase.add_file_reference(ref, true)
+              end
             end
             proj.save
           '
           ruby native/App/register_plugin.rb
-          grep -c "NativeTabsPlugin.swift" ios/App/App.xcodeproj/project.pbxproj
+          grep -c "NativeTabsPlugin.swift" ios/App/App.xcodeproj/project.pbxproj; grep -c "CampusAdsPlugin.swift" ios/App/App.xcodeproj/project.pbxproj
+          grep -q "Google-Mobile-Ads-SDK" ios/App/Podfile || sed -i '' "s/^target 'App' do/target 'App' do\n  pod 'Google-Mobile-Ads-SDK', '~> 11.0'/" ios/App/Podfile
+          grep -n "Google-Mobile-Ads-SDK" ios/App/Podfile
+          # 백로그 ④: iOS 배포 타겟 15.0 (ITMS-90068 대응) — 앱 프로젝트·Podfile 일괄
+          sed -i '' -E 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/App/App.xcodeproj/project.pbxproj
+          sed -i '' -E "s/platform :ios, '[0-9.]+'/platform :ios, '15.0'/" ios/App/Podfile
+          grep -c "IPHONEOS_DEPLOYMENT_TARGET = 15.0" ios/App/App.xcodeproj/project.pbxproj; grep "platform :ios" ios/App/Podfile
           for f in splash-2732x2732.png splash-2732x2732-1.png splash-2732x2732-2.png; do cp resources/splash-2732x2732.png "ios/App/App/Assets.xcassets/Splash.imageset/$f"; done
           ls ios/App/App/Assets.xcassets/Splash.imageset/
       - name: App icon 1024 into Assets
@@ -78,6 +93,34 @@ jobs:
           /usr/libexec/PlistBuddy -c "Delete :UIUserInterfaceStyle" ios/App/App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIUserInterfaceStyle string Light" ios/App/App/Info.plist   # 5번방 09.21: 앱 라이트 전용(스플래시·상태바 포함)
           /usr/libexec/PlistBuddy -c "Print :UIUserInterfaceStyle" ios/App/App/Info.plist
+          # ---- 광고 회차: AdMob (Secrets 없으면 구글 테스트 값) · ATT · SKAdNetwork · PrivacyInfo ----
+          P=ios/App/App/Info.plist; PB=/usr/libexec/PlistBuddy
+          for k in GADApplicationIdentifier ADMOB_REWARDED ADMOB_BANNER ADMOB_NATIVE NSUserTrackingUsageDescription SKAdNetworkItems; do $PB -c "Delete :$k" $P 2>/dev/null || true; done
+          $PB -c "Add :GADApplicationIdentifier string ${ADMOB_APP_ID_IOS:-ca-app-pub-3940256099942544~1458002511}" $P
+          $PB -c "Add :ADMOB_REWARDED string ${ADMOB_REWARDED_IOS:-ca-app-pub-3940256099942544/1712485313}" $P
+          $PB -c "Add :ADMOB_BANNER string ${ADMOB_BANNER_IOS:-ca-app-pub-3940256099942544/2934735716}" $P
+          $PB -c "Add :ADMOB_NATIVE string ${ADMOB_NATIVE_IOS:-ca-app-pub-3940256099942544/3986624511}" $P
+          $PB -c "Add :NSUserTrackingUsageDescription string 맞춤 광고를 보여드리기 위해 사용해요. 허용하지 않아도 앱은 그대로 쓸 수 있어요." $P
+          $PB -c "Add :SKAdNetworkItems array" $P
+          i=0; for n in cstr6suwn9 4fzdc2evr5 2fnua5tm8w ydx93a7ass p78axxw29g v72qych5uu ludvb6z3bs cp8zw746q7 3sh42y64q3 c6k4g5qg8m s39g8k73mm 3qy4746246 hs6bdukanm mlmmfzh3r3 v4nxqhlyqp wzmmz9fp6w su67r6k2v3 yclnxrl5pm t38b2kh725 7ug5zh24hu gta9lk7p23 vutu7akeur y5ghdn5j9k v9wttpbfk9 n38lu8286q 47vhws6wlr kbd757ywx3 9t245vhmpl a2p9lx4jpn 22mmun2rn5 4468km3ulz 2u9pt9hc89 8s468mfl3y ppxm28t8ap uw77j35x4d pwa73g5rt2 578prtvx9j 4dzt52r2t5 tl55sbb4fm e5fvkxwrpn 8c4e2ghe7u 3rd42ekr43 3qcr597p9d; do $PB -c "Add :SKAdNetworkItems:$i dict" $P; $PB -c "Add :SKAdNetworkItems:$i:SKAdNetworkIdentifier string $n.skadnetwork" $P; i=$((i+1)); done
+          $PB -c "Print :GADApplicationIdentifier" $P; echo "SKAdNetwork items: $i"
+          cat > ios/App/App/PrivacyInfo.xcprivacy <<'XP'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>NSPrivacyTracking</key><true/>
+            <key>NSPrivacyTrackingDomains</key><array/>
+            <key>NSPrivacyCollectedDataTypes</key><array>
+              <dict><key>NSPrivacyCollectedDataType</key><string>NSPrivacyCollectedDataTypeDeviceID</string><key>NSPrivacyCollectedDataTypeLinked</key><false/><key>NSPrivacyCollectedDataTypeTracking</key><true/><key>NSPrivacyCollectedDataTypePurposes</key><array><string>NSPrivacyCollectedDataTypePurposeThirdPartyAdvertising</string></array></dict>
+              <dict><key>NSPrivacyCollectedDataType</key><string>NSPrivacyCollectedDataTypeAdvertisingData</string><key>NSPrivacyCollectedDataTypeLinked</key><false/><key>NSPrivacyCollectedDataTypeTracking</key><true/><key>NSPrivacyCollectedDataTypePurposes</key><array><string>NSPrivacyCollectedDataTypePurposeThirdPartyAdvertising</string></array></dict>
+            </array>
+            <key>NSPrivacyAccessedAPITypes</key><array>
+              <dict><key>NSPrivacyAccessedAPIType</key><string>NSPrivacyAccessedAPICategoryUserDefaults</string><key>NSPrivacyAccessedAPITypeReasons</key><array><string>CA92.1</string></array></dict>
+            </array>
+          </dict></plist>
+          XP
+          ruby -e 'require "xcodeproj"; proj=Xcodeproj::Project.open("ios/App/App.xcodeproj"); t=proj.targets.find{|x|x.name=="App"}; g=proj.main_group.groups.find{|x|x.path=="App"||x.name=="App"}; f="PrivacyInfo.xcprivacy"; unless g.files.any?{|x|x.path==f}; r=g.new_reference(f); t.resources_build_phase.add_file_reference(r,true); end; proj.save'
+          grep -c "PrivacyInfo.xcprivacy" ios/App/App.xcodeproj/project.pbxproj
       - uses: actions/cache@v4
         with:
           path: ~/Library/Caches/CocoaPods
@@ -122,6 +165,8 @@ jobs:
           xcrun simctl terminate "$UDID" $B || true
           # ⑪ Turnstile: 가입 화면 진입 후 위젯 토큰(네트워크 허용 전제)
           xcrun simctl launch "$UDID" $B -smokeTab my -smokeAction openSignup; sleep 12; cap 06_signup_turnstile
+          xcrun simctl terminate "$UDID" $B || true; sleep 1
+          xcrun simctl launch "$UDID" $B -smokeTab score -smokeAction adsSmoke; sleep 14; cap 07_ads
           xcrun simctl terminate "$UDID" $B || true
           # ⑧ 오프라인: pf로 아웃바운드 차단 후 실행(번들 웹이라 홈 로드·탭바 기대)
           IF=$(route -n get 8.8.8.8 2>/dev/null | awk '/interface:/{print $2}'); echo "block on $IF"
@@ -201,11 +246,19 @@ jobs:
           except Exception: A={}
           okA=A.get('status')==200 and '"available": false' in (A.get('body','').replace(' ','').replace('"available":false','"available": false'))
           item(12,'네이티브 auth/check 도달(200 + available=false, test111)', okA, f'{A}')
+          try: AD=json.load(open('smoke/smoke_score.json')).get('ads') or {}
+          except Exception: AD={}
+          st=AD.get('status') or {}; rw=AD.get('rewarded') or {}; na=AD.get('native') or {}; cd=AD.get('card') or {}
+          item(13,'ATT 상태 기록(권한 팝업 문구 Info.plist 등록)', st.get('att') in ('notDetermined','authorized','denied','restricted'), f"att={st.get('att')} unit={st.get('rewardedUnit')}")
+          item(14,'보상형 광고 로드(테스트 단위, dryRun)', rw.get('loaded')==True, f'{rw}')
+          item(15,'네이티브 광고 카드 로드(테스트 단위)', na.get('loaded')==True, f'{na}')
+          item(16,'열쇠 0 카드 DOM(블러+닫기·광고 보고 결과 열기)', cd.get('blur')==True and any('광고' in b for b in cd.get('btns',[])), f'{cd}')
           ok=all(r[2] for r in R)
           md='| # | 항목 | 결과 | 수치 |\n|---|---|---|---|\n'+'\n'.join(f'| {n} | {nm} | {"✅ PASS" if o else "❌ FAIL"} | {d} |' for n,nm,o,d in R)+f'\n\n**{"SMOKE_OK" if ok else "SMOKE_FAIL"}**\n'
-          open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## iOS 셸 스모크 9항\n'+md); print(md); sys.exit(0 if ok else 1)
+          open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## iOS 셸 스모크 16항\n'+md); print(md); sys.exit(0 if ok else 1)
           PY
       - name: Import distribution certificate
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.upload != 'false' }}
         run: |
           echo "$IOS_CERT_P12_B64" | base64 --decode > $RUNNER_TEMP/cert.p12
           security create-keychain -p ci $RUNNER_TEMP/build.keychain
@@ -216,8 +269,10 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci $RUNNER_TEMP/build.keychain
           security list-keychains -d user -s $RUNNER_TEMP/build.keychain login.keychain-db
       - name: Write App Store Connect API key
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.upload != 'false' }}
         run: echo "$ASC_KEY_P8_B64" | base64 --decode > $RUNNER_TEMP/AuthKey.p8
       - name: Build & upload to TestFlight
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.upload != 'false' }}
         env:
           ASC_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
           KEYCHAIN_PATH: ${{ runner.temp }}/build.keychain

@@ -1,0 +1,175 @@
+name: android
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "AAB 산출(서명) — ANDROID_KEYSTORE_B64 또는 비밀번호 2종(자동 생성) 필요"
+        default: "true"
+concurrency: { group: android, cancel-in-progress: true }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      APP_HDR_SECRET: ${{ secrets.APP_HDR_SECRET }}
+      ADMOB_APP_ID_ANDROID: ${{ secrets.ADMOB_APP_ID_ANDROID }}
+      ADMOB_REWARDED_ANDROID: ${{ secrets.ADMOB_REWARDED_ANDROID }}
+      ADMOB_BANNER_ANDROID: ${{ secrets.ADMOB_BANNER_ANDROID }}
+      ADMOB_NATIVE_ANDROID: ${{ secrets.ADMOB_NATIVE_ANDROID }}
+      ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: android-actions/setup-android@v3
+      - run: npm ci || npm install
+      - name: Keystore (B64 있으면 재사용 / 없으면 자동 생성 → Job Summary에 base64 출력)
+        id: ks
+        run: |
+          set -euo pipefail
+          ALIAS="${ANDROID_KEY_ALIAS:-campusdoit}"
+          if [ -n "${ANDROID_KEYSTORE_B64:-}" ]; then
+            echo "$ANDROID_KEYSTORE_B64" | base64 -d > release.keystore
+            echo "ready=1" >> "$GITHUB_OUTPUT"; echo "keystore: reuse ANDROID_KEYSTORE_B64"
+          elif [ -n "${ANDROID_KEYSTORE_PASSWORD:-}" ] && [ -n "${ANDROID_KEY_PASSWORD:-}" ]; then
+            keytool -genkeypair -storetype JKS -keystore release.keystore -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$ANDROID_KEYSTORE_PASSWORD" -keypass "$ANDROID_KEY_PASSWORD" -dname "CN=CampusDoIt, O=PATTERN PARK, C=KR" >/dev/null 2>&1
+            B=$(base64 -w0 release.keystore)
+            { echo "## ⚠️ keystore 자동 생성 — 아래 값을 Secrets **ANDROID_KEYSTORE_B64** 에 등록하고 따로 보관(분실 시 복구 불가)"; echo; echo '```'; echo "$B"; echo '```'; echo
+              echo "alias: $ALIAS · 비밀번호 = Secrets ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_PASSWORD (등록 후 다음 실행부터 B64 재사용)"; } >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=1" >> "$GITHUB_OUTPUT"; echo "keystore: generated → Job Summary"
+          else
+            echo "ready=0" >> "$GITHUB_OUTPUT"; echo "no keystore secrets — unsigned/debug only"
+          fi
+      - name: Inject app header secret into www/index.html
+        run: |
+          python3 - <<'PY'
+          import os,io
+          p='www/index.html'; s=io.open(p,encoding='utf-8').read()
+          assert s.count('"__APP_HDR_SECRET__"')==1, 'placeholder count != 1'
+          io.open(p,'w',encoding='utf-8').write(s.replace('"__APP_HDR_SECRET__"','"'+os.environ.get('APP_HDR_SECRET','').replace('\\','\\\\').replace('"','\\"')+'"'))
+          print('secret injected')
+          PY
+      - name: Add & sync Android
+        run: |
+          npm install @capacitor/android@^6.1.0 --no-save --no-audit --no-fund
+          test -d android || npx cap add android
+          npx cap sync android
+      - name: Native shell (tabs · ads plugins · icons · manifest · signing)
+        run: |
+          set -euo pipefail
+          D=android/app/src/main
+          mkdir -p $D/java/com/campusdoit/app $D/res/drawable $D/res/values
+          cp native/android/NativeTabsPlugin.kt native/android/CampusAdsPlugin.kt native/android/MainActivity.kt $D/java/com/campusdoit/app/
+          rm -f $D/java/com/campusdoit/app/MainActivity.java
+          mk(){ cat > $D/res/drawable/$1.xml <<XML
+          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FF000000" android:pathData="$2"/></vector>
+          XML
+          }
+          mk ic_tab_cat "M3,3h8v8H3zM13,3h8v8h-8zM3,13h8v8H3zM13,13h8v8h-8z"
+          mk ic_tab_score "M6,2h9l5,5v15H6zM8,4v16h10V8h-4V4zM9,11h8v2H9zM9,15h8v2H9z"
+          mk ic_tab_home "M12,3l9,8h-3v10h-5v-6h-2v6H6V11H3z"
+          mk ic_tab_sched "M7,2h2v2h6V2h2v2h3v18H4V4h3zM6,9v11h12V9zM8,11h3v3H8z"
+          mk ic_tab_my "M12,3a4,4 0 1,1 0,8a4,4 0 1,1 0,-8zM4,21c0,-4 3.5,-7 8,-7s8,3 8,7z"
+          cat > $D/res/values/ads.xml <<XML
+          <resources>
+            <string name="ADMOB_REWARDED">${ADMOB_REWARDED_ANDROID:-ca-app-pub-3940256099942544/5224354917}</string>
+            <string name="ADMOB_BANNER">${ADMOB_BANNER_ANDROID:-ca-app-pub-3940256099942544/9214589741}</string>
+            <string name="ADMOB_NATIVE">${ADMOB_NATIVE_ANDROID:-ca-app-pub-3940256099942544/2247696110}</string>
+          </resources>
+          XML
+          APPID="${ADMOB_APP_ID_ANDROID:-ca-app-pub-3940256099942544~3347511713}"
+          python3 - "$APPID" <<'PY'
+          import sys,re
+          p='android/app/src/main/AndroidManifest.xml'; s=open(p).read(); appid=sys.argv[1]
+          if 'APPLICATION_ID' not in s:
+              s=re.sub(r'(<application[^>]*>)',r'\1\n        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="'+appid+'"/>',s,count=1)
+          if 'AD_ID' not in s: s=s.replace('<uses-permission android:name="android.permission.INTERNET" />','<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />',1)
+          if 'android:screenOrientation' not in s: s=s.replace('<activity',"<activity\n            android:screenOrientation=\"portrait\"",1)
+          open(p,'w').write(s); print('manifest ok')
+          PY
+          python3 - <<'PY'
+          p='android/app/build.gradle'; s=open(p).read()
+          if 'play-services-ads' not in s:
+              s=s.replace('dependencies {','dependencies {\n    implementation "com.google.android.material:material:1.12.0"\n    implementation "com.google.android.gms:play-services-ads:23.6.0"',1)
+          if "kotlin-android" not in s and "org.jetbrains.kotlin.android" not in s:
+              s="apply plugin: 'org.jetbrains.kotlin.android'\n"+s
+          open(p,'w').write(s)
+          b='android/build.gradle'; t=open(b).read()
+          if 'kotlin' not in t: t=t.replace('dependencies {','dependencies {\n        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.24"',1)
+          open(b,'w').write(t); print('gradle ok')
+          PY
+          python3 - <<'PY'
+          import glob
+          for p in glob.glob('android/app/src/main/res/values*/styles.xml'):
+              s=open(p).read()
+              if 'AppTheme.NoActionBar' in s and 'android:forceDarkAllowed' not in s:
+                  s=s.replace('<style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">','<style name="AppTheme.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar">\n        <item name="android:forceDarkAllowed">false</item>')
+                  open(p,'w').write(s)
+          print('theme ok')
+          PY
+          if [ "${{ steps.ks.outputs.ready }}" = "1" ]; then
+            cp release.keystore android/app/release.keystore
+            cat >> android/app/build.gradle <<'G'
+          android {
+              signingConfigs { release { storeFile file("release.keystore"); storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD"); keyAlias (System.getenv("ANDROID_KEY_ALIAS") ?: "campusdoit"); keyPassword System.getenv("ANDROID_KEY_PASSWORD") } }
+              buildTypes { release { signingConfig signingConfigs.release } }
+          }
+          G
+            echo "signing configured"
+          else echo "no keystore secrets — unsigned/debug only"; fi
+          V=$(node -p "require('./package.json').version"); VC=$(date +%y%m%d%H)
+          sed -i -E "s/versionName \"[^\"]*\"/versionName \"$V\"/; s/versionCode [0-9]+/versionCode $VC/" android/app/build.gradle
+          grep -n "versionName\|versionCode\|play-services-ads\|material" android/app/build.gradle | head
+      - name: Build debug APK
+        run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon -q && ls app/build/outputs/apk/debug/
+      - name: Emulator smoke (5항)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            P=com.campusdoit.app; A=$P/.MainActivity; mkdir -p smoke
+            run(){ adb shell am force-stop $P; adb shell am start -n $A $2 >/dev/null; sleep $3; adb exec-out screencap -p > smoke/$1.png; adb pull /sdcard/Android/data/$P/files/smoke_$4.json smoke/ 2>/dev/null || true; }
+            run 01_home "--es smokeTab home" 9 home
+            run 02_score_gate "--es smokeTab score --es smokeAction runSim" 13 score
+            run 03_my "--es smokeTab my" 9 my
+            run 04_ads "--es smokeTab score --es smokeAction adsSmoke" 15 score
+            ls smoke
+      - name: Judge
+        run: |
+          python3 - <<'PY'
+          import json,os,sys
+          R=[]; item=lambda n,nm,ok,d: R.append((n,nm,ok,d))
+          def J(k):
+              try: return json.load(open(f'smoke/smoke_{k}.json'))
+              except Exception: return {}
+          h=J('home'); item(1,'네이티브 탭바 표시·웹 탭 비노출', h.get('tabVisible')==True and h.get('nav')=='none' and h.get('native')==True, f"tabVisible={h.get('tabVisible')} nav={h.get('nav')} inset={h.get('inset')}")
+          item(2,'홈 진입 8s 내(revealAt)', 0<=float(h.get('revealAt',-1))<=8, f"revealAt={h.get('revealAt')}")
+          s=J('score'); item(3,'로그인 게이트(미로그인 결과 클릭→loginView)', s.get('view')=='loginView' and not s.get('logged'), f"view={s.get('view')} err={s.get('err')}")
+          m=J('my'); item(4,'MY 탭 전환', m.get('view') in ('loginView','myView'), f"view={m.get('view')}")
+          ad=(s.get('ads') or {}) if isinstance(s,dict) else {}
+          rw=ad.get('rewarded') or {}; na=ad.get('native') or {}; cd=ad.get('card') or {}
+          item(5,'보상형·네이티브 광고 로드(테스트 단위) + 열쇠 0 카드 DOM', rw.get('loaded')==True and na.get('loaded')==True and cd.get('blur')==True, f"rw={rw} na={na} card={cd}")
+          ok=all(r[2] for r in R)
+          md='| # | 항목 | 결과 | 수치 |\n|---|---|---|---|\n'+'\n'.join(f'| {n} | {nm} | {"✅ PASS" if o else "❌ FAIL"} | {d} |' for n,nm,o,d in R)+f'\n\n**{"SMOKE_OK" if ok else "SMOKE_FAIL"}**\n'
+          open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## Android 셸 스모크 5항\n'+md); print(md); sys.exit(0 if ok else 1)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: android-smoke, path: smoke/* }
+      - name: Build release AAB (signed)
+        if: ${{ github.event.inputs.upload == 'true' && steps.ks.outputs.ready == '1' }}
+        run: cd android && ./gradlew bundleRelease --no-daemon -q && ls app/build/outputs/bundle/release/
+      - uses: actions/upload-artifact@v4
+        if: ${{ github.event.inputs.upload == 'true' && steps.ks.outputs.ready == '1' }}
+        with: { name: app-release-aab, path: android/app/build/outputs/bundle/release/*.aab }

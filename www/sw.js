@@ -1,7 +1,7 @@
 /* 캠퍼스두잇 sw.js — 네트워크 우선 · 즉시 교체
    버전은 아래 VERSION 상수가 유일한 기준(주석에 버전 기재 금지 — 불일치 방지).
    배포 때마다 VERSION을 UI 빌드번호에 맞춰 올리면 됨. */
-const VERSION = "b592b";
+const VERSION = "b592e";
 const CACHE = "doit-" + VERSION;
 
 /* 설치 즉시 대기 없이 활성화 */
@@ -26,6 +26,7 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;                          // API POST 등은 손대지 않음
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;           // turnstile 등 외부는 통과
+  if (url.pathname.startsWith("/api/")) return;              // [F5-10] API 응답(관리자·개인 데이터)은 캐시 적재·폴백 모두 제외
 
   e.respondWith(
     fetch(req)

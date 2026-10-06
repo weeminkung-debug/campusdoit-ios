@@ -6,7 +6,7 @@ p = "ios/App/App/AppDelegate.swift"
 s = File.read(p)
 unless s.include?("NativeTabsPlugin")
   s.sub!(/(func application\(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: \[UIApplication\.LaunchOptionsKey: Any\]\?\) -> Bool \{\n)/) { |m|
-    m + "        DispatchQueue.main.async {\n            if let vc = self.window?.rootViewController as? CAPBridgeViewController { vc.bridge?.registerPluginInstance(NativeTabsPlugin()) }\n        }\n"
+    m + "        DispatchQueue.main.async {\n            if let vc = self.window?.rootViewController as? CAPBridgeViewController { vc.bridge?.registerPluginInstance(NativeTabsPlugin()); vc.bridge?.registerPluginInstance(CampusAdsPlugin()) }\n        }\n"
   }
   File.write(p, s)
 end

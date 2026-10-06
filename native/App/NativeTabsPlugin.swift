@@ -102,6 +102,12 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
                     }
                 }
             }
+            if action == "adsSmoke" {   // ⑬~⑯ 광고: ATT 상태·보상형 로드(dryRun)·네이티브 카드 로드·열쇠 0 카드 DOM → window.__ads
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+                    let js = "(function(){try{var d=document.getElementById('dmAgree'); if(d) d.click();}catch(e){} window.__ads={}; try{ var P=Capacitor.Plugins.CampusAds; P.status().then(function(s){ window.__ads.status=s; }); P.showRewarded({userId:'0',dryRun:true}).then(function(r){ window.__ads.rewarded=r; }).catch(function(e){ window.__ads.rewarded={error:String(e)}; }); P.showNativeCard({top:300,height:47,dryRun:true}).then(function(r){ window.__ads.native=r; }).catch(function(e){ window.__ads.native={error:String(e)}; }); }catch(e){ window.__ads.err=String(e); } try{ goApp(); setScope('KR'); var h=document.getElementById('result'); h.innerHTML='<div class=\"tier\">x</div>'; _kLock(h,'score_result','smoke'); window.__ads.card={blur:h.classList.contains('kblur'), btns:[...h.querySelectorAll('.kbtn')].map(function(b){return b.textContent.trim();})}; }catch(e){ window.__ads.cardErr=String(e); } return 1;})()"
+                    self?.bridge?.webView?.evaluateJavaScript(js, completionHandler: nil)
+                }
+            }
             // ⑩ 홈 레이아웃 안정: +2s·+8s 주요 요소 위치 기록 → 판정 스텝에서 이동 0 검증
             if key == "home" {
                 [2.0, 8.0].forEach { d in
@@ -112,7 +118,7 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
                 }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + (action == nil ? (key == "home" ? 9.0 : 6.0) : 9.0)) { [weak self] in
-                let js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:!!(document.body.classList.contains('native-tabs')), err:(window.__smokeErr||''), logged:(typeof isLoggedIn==='function'?isLoggedIn():null), layout:(window.__layout||null), api:(window.__apiCheck||null), ts:(function(){try{var f=document.querySelectorAll('#signupView iframe').length;var ex=document.querySelectorAll('#signupView [data-ts-exempt]').length;return {iframes:f,exempt:ex,origin:location.origin,hdr:(window.__hdrSent===true)}}catch(e){return {err:String(e)}}})()})"
+                let js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:!!(document.body.classList.contains('native-tabs')), err:(window.__smokeErr||''), logged:(typeof isLoggedIn==='function'?isLoggedIn():null), layout:(window.__layout||null), api:(window.__apiCheck||null), ads:(window.__ads||null), ts:(function(){try{var f=document.querySelectorAll('#signupView iframe').length;var ex=document.querySelectorAll('#signupView [data-ts-exempt]').length;return {iframes:f,exempt:ex,origin:location.origin,hdr:(window.__hdrSent===true)}}catch(e){return {err:String(e)}}})()})"
                 self?.bridge?.webView?.evaluateJavaScript(js) { res, _ in
                     guard let self = self, var str = res as? String, let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
                     str = String(str.dropLast()) + String(format: ",\"splashHideAt\":%.3f,\"revealAt\":%.3f}", self.splashHideAt, self.revealAt)
