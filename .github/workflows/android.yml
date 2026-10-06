@@ -141,7 +141,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -eu
             adb install -r android/app/build/outputs/apk/debug/app-debug.apk
             P=com.campusdoit.app; A=$P/.MainActivity; mkdir -p smoke
             run(){ adb shell am force-stop $P; adb shell am start -n $A $2 >/dev/null; sleep $3; adb exec-out screencap -p > smoke/$1.png; adb pull /sdcard/Android/data/$P/files/smoke_$4.json smoke/ 2>/dev/null || true; }
@@ -149,8 +149,9 @@ jobs:
             run 02_score_gate "--es smokeTab score --es smokeAction runSim" 13 score
             run 03_my "--es smokeTab my" 9 my
             run 04_ads "--es smokeTab score --es smokeAction adsSmoke" 15 score
-            ls smoke
+            ls smoke; adb logcat -d -s chromium:I Capacitor:I AndroidRuntime:E 2>/dev/null | tail -60 > smoke/logcat.txt || true
       - name: Judge
+        if: always()
         run: |
           python3 - <<'PY'
           import json,os,sys
@@ -166,6 +167,10 @@ jobs:
           rw=ad.get('rewarded') or {}; na=ad.get('native') or {}; cd=ad.get('card') or {}
           item(5,'보상형·네이티브 광고 로드(테스트 단위) + 열쇠 0 카드 DOM', rw.get('loaded')==True and na.get('loaded')==True and cd.get('blur')==True, f"rw={rw} na={na} card={cd}")
           ok=all(r[2] for r in R)
+          def _ann(t,x): print("::notice title="+t+"::"+str(x).replace("%","%25").replace("\r","").replace("\n","%0A")[:3800])
+          for i in range(0,len(R),8): _ann(f"smoke-{R[i][0]}-{R[min(i+7,len(R)-1)][0]}", "\n".join(f'{n} {"PASS" if o else "FAIL"} {nm} | {d}' for n,nm,o,d in R[i:i+8]))
+          import glob as _g
+          for f in (sorted(_g.glob("smoke/*.json"))+sorted(_g.glob("smoke/*.txt")))[:7]: _ann("json-"+os.path.basename(f), open(f).read()[:3800])
           md='| # | 항목 | 결과 | 수치 |\n|---|---|---|---|\n'+'\n'.join(f'| {n} | {nm} | {"✅ PASS" if o else "❌ FAIL"} | {d} |' for n,nm,o,d in R)+f'\n\n**{"SMOKE_OK" if ok else "SMOKE_FAIL"}**\n'
           open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## Android 셸 스모크 5항\n'+md); print(md); sys.exit(0 if ok else 1)
           PY
