@@ -151,15 +151,28 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            set -eu
+            set +e
+            mkdir -p smoke
             adb install -r android/app/build/outputs/apk/debug/app-debug.apk
-            P=com.campusdoit.app; A=$P/.MainActivity; mkdir -p smoke
-            run(){ adb shell am force-stop $P; adb shell am start -n $A $2 >/dev/null; sleep $3; adb exec-out screencap -p > smoke/$1.png; adb pull /sdcard/Android/data/$P/files/smoke_$4.json smoke/ 2>/dev/null || true; }
-            run 01_home "--es smokeTab home" 9 home
-            run 02_score_gate "--es smokeTab score --es smokeAction runSim" 13 score
-            run 03_my "--es smokeTab my" 9 my
+            adb shell pm list packages | grep campusdoit > smoke/_installed.txt
+            P=com.campusdoit.app; A=$P/.MainActivity
+            adb logcat -c || true
+            run(){ adb shell am force-stop $P; adb shell am start -n $A $2 >/dev/null 2>&1; sleep $3; adb exec-out screencap -p > smoke/$1.png 2>/dev/null; adb pull /sdcard/Android/data/$P/files/smoke_$4.json smoke/ >/dev/null 2>&1 || true; adb pull /sdcard/Android/data/$P/files/smoke_ads.json smoke/ >/dev/null 2>&1 || true; }
+            run 01_home "--es smokeTab home" 10 home
+            run 02_score_gate "--es smokeTab score --es smokeAction runSim" 14 score
+            run 03_my "--es smokeTab my" 10 my
             run 04_ads "--es smokeTab score --es smokeAction adsSmoke" 15 score
-            ls smoke; adb logcat -d -s chromium:I Capacitor:I AndroidRuntime:E 2>/dev/null | tail -60 > smoke/logcat.txt || true
+            ls -la smoke
+            adb logcat -d -s AndroidRuntime:E chromium:I Capacitor:I CapacitorConsole:I 2>/dev/null | tail -120 > smoke/logcat.txt || true
+            exit 0
+      - name: Emulator diagnostics (logcat → annotation)
+        if: always()
+        run: |
+          for f in smoke/logcat.txt smoke/_installed.txt; do
+            [ -f "$f" ] || continue
+            tail -c 3500 "$f" | sed 's/%/%25/g' | awk -v t="$f" 'BEGIN{printf "::notice title=%s::",t} {printf "%s%%0A",$0} END{print ""}'
+          done
+          ls -la smoke || true
       - name: Judge
         if: always()
         run: |

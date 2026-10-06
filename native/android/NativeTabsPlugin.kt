@@ -74,7 +74,8 @@ class NativeTabsPlugin : Plugin() {
                     var s = r ?: "\"{}\""; s = JSONObject("{\"v\":$s}").getString("v")
                     val o = JSONObject(s); o.put("revealAt", revealAt); o.put("tabVisible", nav?.visibility == android.view.View.VISIBLE)
                     val dir = activity?.getExternalFilesDir(null) ?: activity?.filesDir
-                    File(dir, "smoke_$key.json").writeText(o.toString())
+                    val fname = if (action == "adsSmoke") "smoke_ads.json" else "smoke_$key.json"
+                    File(dir, fname).writeText(o.toString())
                 } catch (e: Exception) { }
             }
         }, if (action == null) 6000L else 12000L)
