@@ -211,7 +211,16 @@ jobs:
         with: { name: android-smoke, path: smoke/* }
       - name: Build release AAB (signed)
         if: ${{ github.event.inputs.upload == 'true' && steps.ks.outputs.ready == '1' }}
-        run: cd android && ./gradlew bundleRelease --no-daemon -q && ls app/build/outputs/bundle/release/
+        run: |
+          cd android
+          set +e
+          ./gradlew bundleRelease --no-daemon --stacktrace > /tmp/gr.log 2>&1
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            tail -c 3500 /tmp/gr.log | sed 's/%/%25/g' | awk 'BEGIN{printf "::error title=bundleRelease-fail::"} {printf "%s%%0A",$0} END{print ""}'
+            exit $rc
+          fi
+          ls app/build/outputs/bundle/release/
       - uses: actions/upload-artifact@v4
         if: ${{ github.event.inputs.upload == 'true' && steps.ks.outputs.ready == '1' }}
         with: { name: app-release-aab, path: android/app/build/outputs/bundle/release/*.aab }
