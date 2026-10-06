@@ -143,6 +143,12 @@ jobs:
             exit $rc
           fi
           ls app/build/outputs/apk/debug/
+      - name: Enable KVM (emulator HW accel — boot 안정화)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm || echo "no /dev/kvm"
       - name: Emulator smoke (5항)
         uses: reactivecircus/android-emulator-runner@v2
         with:
