@@ -147,23 +147,28 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 33
+          target: google_apis
           arch: x86_64
           profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
+          disable-spellchecker: true
           script: |
             set +e
             mkdir -p smoke
             adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            adb shell pm list packages | grep campusdoit > smoke/_installed.txt
             P=com.campusdoit.app; A=$P/.MainActivity
-            adb logcat -c
-            adb shell am start -n $A --es smokeTab home
-            sleep 8
-            adb exec-out screencap -p > smoke/01_home.png 2>/dev/null
-            adb logcat -d > smoke/logcat_full.txt 2>/dev/null
-            adb logcat -d 2>/dev/null | grep -iE "FATAL|AndroidRuntime|campusdoit|MaterialComponents|BottomNavigation|NoClassDef|ClassNotFound|RuntimeException|Capacitor" | tail -80 > smoke/logcat.txt
-            adb shell ls -la /sdcard/Android/data/$P/files 2>/dev/null > smoke/_filesdir.txt
-            adb pull /sdcard/Android/data/$P/files/smoke_home.json smoke/ 2>/dev/null || true
+            adb logcat -c || true
+            run(){ adb shell am force-stop $P; adb shell am start -n $A $2 >/dev/null 2>&1; sleep $3; adb exec-out screencap -p > smoke/$1.png 2>/dev/null; adb pull /sdcard/Android/data/$P/files/smoke_$4.json smoke/ >/dev/null 2>&1 || true; adb pull /sdcard/Android/data/$P/files/smoke_ads.json smoke/ >/dev/null 2>&1 || true; }
+            run 01_home "--es smokeTab home" 10 home
+            run 02_score_gate "--es smokeTab score --es smokeAction runSim" 14 score
+            run 03_my "--es smokeTab my" 10 my
+            run 04_ads "--es smokeTab score --es smokeAction adsSmoke" 15 score
             ls -la smoke
+            adb shell run-as $P ls -la files 2>/dev/null > smoke/_filesdir.txt || adb shell ls -la /sdcard/Android/data/$P/files 2>/dev/null > smoke/_filesdir.txt || true
+            adb logcat -d 2>/dev/null | grep -iE "campusdoit|AndroidRuntime|FATAL|Capacitor|chromium|MaterialComponents|BottomNavigation" | tail -150 > smoke/logcat.txt || true
             exit 0
       - name: Emulator diagnostics (logcat → annotation)
         if: always()
