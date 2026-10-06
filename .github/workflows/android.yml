@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       upload:
-        description: "AAB 산출(서명) — ANDROID_KEYSTORE_B64 또는 비밀번호 2종(자동 생성) 필요"
+        description: "AAB 산출(서명) — 기존 ANDROID_KEYSTORE_B64 keystore 사용"
         default: "true"
 concurrency: { group: android, cancel-in-progress: true }
 jobs:
@@ -33,23 +33,19 @@ jobs:
           yes | "$SM" --licenses >/dev/null 2>&1 || true
           "$SM" --list_installed 2>/dev/null | grep -E "build-tools|platforms;" | head -6 || true
       - run: npm ci || npm install
-      - name: Keystore (B64 있으면 재사용 / 없으면 자동 생성 → Job Summary에 base64 출력)
+      - name: Keystore (기존 ANDROID_KEYSTORE_B64 복호화)
         id: ks
         run: |
           set -euo pipefail
-          ALIAS="${ANDROID_KEY_ALIAS:-campusdoit}"
           if [ -n "${ANDROID_KEYSTORE_B64:-}" ]; then
             echo "$ANDROID_KEYSTORE_B64" | base64 -d > release.keystore
-            echo "ready=1" >> "$GITHUB_OUTPUT"; echo "keystore: reuse ANDROID_KEYSTORE_B64"
-          elif [ -n "${ANDROID_KEYSTORE_PASSWORD:-}" ] && [ -n "${ANDROID_KEY_PASSWORD:-}" ]; then
-            keytool -genkeypair -storetype JKS -keystore release.keystore -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass "$ANDROID_KEYSTORE_PASSWORD" -keypass "$ANDROID_KEY_PASSWORD" -dname "CN=CampusDoIt, O=PATTERN PARK, C=KR" >/dev/null 2>&1
-            B=$(base64 -w0 release.keystore)
-            { echo "## ⚠️ keystore 자동 생성 — 아래 값을 Secrets **ANDROID_KEYSTORE_B64** 에 등록하고 따로 보관(분실 시 복구 불가)"; echo; echo '```'; echo "$B"; echo '```'; echo
-              echo "alias: $ALIAS · 비밀번호 = Secrets ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_PASSWORD (등록 후 다음 실행부터 B64 재사용)"; } >> "$GITHUB_STEP_SUMMARY"
-            echo "ready=1" >> "$GITHUB_OUTPUT"; echo "keystore: generated → Job Summary"
+            keytool -list -keystore release.keystore -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "${ANDROID_KEY_ALIAS:-campusdoit}" >/dev/null 2>&1 \
+              && echo "keystore: B64 복호화·검증 OK (alias ${ANDROID_KEY_ALIAS:-campusdoit})" \
+              || echo "::warning title=keystore::keytool -list 검증 실패 — 비밀번호/alias 확인 필요(빌드는 계속)"
+            echo "ready=1" >> "$GITHUB_OUTPUT"
           else
-            echo "ready=0" >> "$GITHUB_OUTPUT"; echo "no keystore secrets — unsigned/debug only"
+            echo "::error title=keystore::ANDROID_KEYSTORE_B64 secret 미등록 — 서명 불가"
+            echo "ready=0" >> "$GITHUB_OUTPUT"
           fi
       - name: Inject app header secret into www/index.html
         run: |
