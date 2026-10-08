@@ -39,13 +39,15 @@ jobs:
       - name: Keystore (B64 재사용 / regen_keystore=true면 신규 생성 → Job Summary)
         id: ks
         run: |
-          set -euo pipefail
+          set -uo pipefail
           ALIAS="${ANDROID_KEY_ALIAS:-campusdoit}"
           if [ "${{ github.event.inputs.regen_keystore }}" = "true" ] || [ -z "${ANDROID_KEYSTORE_B64:-}" ]; then
             rm -f release.keystore
-            keytool -genkeypair -storetype PKCS12 -keystore release.keystore -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass "$ANDROID_KEYSTORE_PASSWORD" -keypass "$ANDROID_KEY_PASSWORD" -dname "CN=CampusDoIt, O=PATTERN PARK, C=KR"
-            keytool -exportcert -rfc -alias "$ALIAS" -keystore release.keystore -storepass "$ANDROID_KEYSTORE_PASSWORD" -file upload_certificate.pem
+            keytool -genkeypair -storetype JKS -keystore release.keystore -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$ANDROID_KEYSTORE_PASSWORD" -keypass "$ANDROID_KEY_PASSWORD" -dname "CN=CampusDoIt, O=PATTERN PARK, C=KR" 2>/tmp/kt.log
+            GRC=$?
+            if [ $GRC -ne 0 ]; then head -c 1200 /tmp/kt.log | sed 's/%/%25/g' | awk 'BEGIN{printf "::error title=keytool-genkey::"}{printf "%s%%0A",$0}END{print ""}'; exit $GRC; fi
+            keytool -exportcert -rfc -alias "$ALIAS" -keystore release.keystore -storepass "$ANDROID_KEYSTORE_PASSWORD" -file upload_certificate.pem 2>/tmp/ke.log || { cat /tmp/ke.log; exit 1; }
             B=$(base64 -w0 release.keystore)
             { echo "## 신규 keystore 생성 (alias $ALIAS · 비번 = Secrets ANDROID_KEYSTORE_PASSWORD/ANDROID_KEY_PASSWORD 현재값)";
               echo; echo "### ① ANDROID_KEYSTORE_B64 (이 값으로 Secret 교체 등록 · 분실 시 복구 불가 — 따로 보관)"; echo '```'; echo "$B"; echo '```';
