@@ -1,0 +1,5 @@
+total 32
+drwxrws--- 2 u0_a126 ext_data_rw 4096 2026-11-20 02:56 .
+drwxrws--- 3 u0_a126 ext_data_rw 4096 2026-11-20 02:55 ..
+-rw-rw---- 1 u0_a126 ext_data_rw  643 2026-11-20 02:55 smoke_key_home.json
+-rw-rw---- 1 u0_a126 ext_data_rw  570 2026-11-20 02:56 smoke_key_my.json
