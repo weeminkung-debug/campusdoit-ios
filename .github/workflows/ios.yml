@@ -139,7 +139,7 @@ jobs:
           echo "sim=$UDID"; echo "$UDID" > smoke_udid.txt
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
-          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator -destination "id=$UDID" -derivedDataPath build/sim CODE_SIGNING_ALLOWED=NO build | tail -5
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator -destination "id=$UDID" -derivedDataPath build/sim CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=NO CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= build | tail -15   # keycheck: Keychain 시험을 위해 시뮬레이터 빌드를 임시 서명(ad-hoc)
           APP=$(find build/sim -name "App.app" -path "*iphonesimulator*" | head -1)
           xcrun simctl install "$UDID" "$APP"
           mkdir -p smoke
