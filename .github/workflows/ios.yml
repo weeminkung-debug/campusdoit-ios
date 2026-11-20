@@ -96,8 +96,8 @@ jobs:
           # ---- 광고 회차: AdMob (Secrets 없으면 구글 테스트 값) · ATT · SKAdNetwork · PrivacyInfo ----
           P=ios/App/App/Info.plist; PB=/usr/libexec/PlistBuddy
           for k in GADApplicationIdentifier ADMOB_REWARDED ADMOB_BANNER ADMOB_NATIVE NSUserTrackingUsageDescription SKAdNetworkItems; do $PB -c "Delete :$k" $P 2>/dev/null || true; done
-          $PB -c "Add :GADApplicationIdentifier string ${ADMOB_APP_ID_IOS:-ca-app-pub-3940256099942544~1458002511}" $P
-          $PB -c "Add :ADMOB_REWARDED string ${ADMOB_REWARDED_IOS:-ca-app-pub-3940256099942544/1712485313}" $P
+          $PB -c "Add :GADApplicationIdentifier string ${ADMOB_APP_ID_IOS:-ca-app-pub-9862619885080241~6794195905}" $P
+          $PB -c "Add :ADMOB_REWARDED string ${ADMOB_REWARDED_IOS:-ca-app-pub-9862619885080241/8434580636}" $P
           $PB -c "Add :ADMOB_BANNER string ${ADMOB_BANNER_IOS:-ca-app-pub-3940256099942544/2934735716}" $P
           $PB -c "Add :ADMOB_NATIVE string ${ADMOB_NATIVE_IOS:-ca-app-pub-3940256099942544/3986624511}" $P
           $PB -c "Add :NSUserTrackingUsageDescription string 맞춤 광고를 보여드리기 위해 사용해요. 허용하지 않아도 앱은 그대로 쓸 수 있어요." $P

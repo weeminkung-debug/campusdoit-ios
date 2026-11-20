@@ -90,12 +90,12 @@ jobs:
           mk ic_tab_my "M12,3a4,4 0 1,1 0,8a4,4 0 1,1 0,-8zM4,21c0,-4 3.5,-7 8,-7s8,3 8,7z"
           cat > $D/res/values/ads.xml <<XML
           <resources>
-            <string name="ADMOB_REWARDED">${ADMOB_REWARDED_ANDROID:-ca-app-pub-3940256099942544/5224354917}</string>
+            <string name="ADMOB_REWARDED">${ADMOB_REWARDED_ANDROID:-ca-app-pub-9862619885080241/6005694581}</string>
             <string name="ADMOB_BANNER">${ADMOB_BANNER_ANDROID:-ca-app-pub-3940256099942544/9214589741}</string>
             <string name="ADMOB_NATIVE">${ADMOB_NATIVE_ANDROID:-ca-app-pub-3940256099942544/2247696110}</string>
           </resources>
           XML
-          APPID="${ADMOB_APP_ID_ANDROID:-ca-app-pub-3940256099942544~3347511713}"
+          APPID="${ADMOB_APP_ID_ANDROID:-ca-app-pub-9862619885080241~2156176384}"
           python3 - "$APPID" <<'PY'
           import sys,re
           p='android/app/src/main/AndroidManifest.xml'; s=open(p).read(); appid=sys.argv[1]
