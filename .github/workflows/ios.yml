@@ -250,10 +250,10 @@ jobs:
           try: AD=json.load(open('smoke/smoke_ads.json')).get('ads') or {}
           except Exception: AD={}
           st=AD.get('status') or {}; rw=AD.get('rewarded') or {}; na=AD.get('native') or {}; cd=AD.get('card') or {}
-          item(13,'ATT 상태 기록(권한 팝업 문구 Info.plist 등록)', st.get('att') in ('notDetermined','authorized','denied','restricted'), f"att={st.get('att')} unit={st.get('rewardedUnit')}")
+          item(13,'ATT 창 없이 상태만 기록(#67 ATT 안 띄움)', st.get('att') in ('notDetermined','authorized','denied','restricted'), f"att={st.get('att')} unit={st.get('rewardedUnit')}")
           item(14,'보상형 광고 로드(테스트 단위, dryRun)', rw.get('loaded')==True, f'{rw}')
           item(15,'네이티브 광고 카드 로드(테스트 단위)', na.get('loaded')==True, f'{na}')
-          item(16,'열쇠 0 카드 DOM(블러+닫기·광고 보고 결과 열기)', cd.get('blur')==True and any(('광고' in b) or ('ad' in b.lower()) for b in cd.get('btns',[])), f'{cd}')
+          item(16,'코디 코칭 받기 버튼 + 광고 전 코칭 문장 0건', cd.get('st')=='ok' and cd.get('cta',0)>=1 and cd.get('cb',1)==0 and cd.get('mem') is False, f'{cd}')
           ok=all(r[2] for r in R)
           def _ann(t,x): print("::notice title="+t+"::"+str(x).replace("%","%25").replace("\r","").replace("\n","%0A")[:3800])
           for i in range(0,len(R),8): _ann(f"smoke-{R[i][0]}-{R[min(i+7,len(R)-1)][0]}", "\n".join(f'{n} {"PASS" if o else "FAIL"} {nm} | {d}' for n,nm,o,d in R[i:i+8]))
