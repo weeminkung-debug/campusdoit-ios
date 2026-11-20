@@ -59,14 +59,14 @@ jobs:
       - name: Native tab bar shell (plugin overlay) + splash assets
         run: |
           set -euo pipefail
-          cp native/App/NativeTabsPlugin.swift native/App/CampusAdsPlugin.swift ios/App/App/
+          cp native/App/NativeTabsPlugin.swift native/App/CampusAdsPlugin.swift native/App/DeviceKeyPlugin.swift ios/App/App/
           gem install xcodeproj -N
           ruby -e '
             require "xcodeproj"
             proj = Xcodeproj::Project.open("ios/App/App.xcodeproj")
             target = proj.targets.find { |t| t.name == "App" } or abort("App target not found")
             group = proj.main_group.groups.find { |g| g.path == "App" || g.name == "App" } or abort("App group not found")
-            ["NativeTabsPlugin.swift","CampusAdsPlugin.swift"].each do |f|
+            ["NativeTabsPlugin.swift","CampusAdsPlugin.swift","DeviceKeyPlugin.swift"].each do |f|
               unless group.files.any? { |x| x.path == f }
                 ref = group.new_reference(f)
                 target.source_build_phase.add_file_reference(ref, true)
