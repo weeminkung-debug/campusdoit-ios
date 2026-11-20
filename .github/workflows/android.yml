@@ -1,5 +1,7 @@
 name: android
 on:
+  push:
+    branches: [keycheck]
   workflow_dispatch:
     inputs:
       upload:
@@ -12,6 +14,7 @@ concurrency: { group: android, cancel-in-progress: true }
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions: { contents: write }
     timeout-minutes: 60
     env:
       APP_HDR_SECRET: ${{ secrets.APP_HDR_SECRET }}
@@ -176,10 +179,21 @@ jobs:
             run 02_score_gate "--es smokeTab score --es smokeAction runSim" 14 score
             run 03_my "--es smokeTab my" 10 my
             run 04_ads "--es smokeTab score --es smokeAction adsSmoke" 15 score
+            run 05_key1 "--es smokeTab home --es smokeAction keySmoke" 16 key_home
+            run 06_key2 "--es smokeTab my --es smokeAction keySmoke" 16 key_my
             ls -la smoke
             adb shell ls -la /sdcard/Android/data/$P/files 2>/dev/null > smoke/_filesdir.txt || true
             adb logcat -d 2>/dev/null | grep -iE "FATAL|AndroidRuntime|campusdoit|MaterialComponents|BottomNavigation|NoClassDef|ClassNotFound|RuntimeException|InflateException|Capacitor|chromium" | tail -90 > smoke/logcat.txt || true
             exit 0
+      - name: Key check result → branch keycheck-result-android
+        if: always()
+        run: |
+          mkdir -p /tmp/res && cp smoke/smoke_key_*.json /tmp/res/ 2>/dev/null || true
+          ls smoke > /tmp/res/_ls.txt 2>/dev/null || true
+          cp smoke/logcat.txt /tmp/res/ 2>/dev/null || true
+          cd /tmp/res && git init -q && git checkout -q -b keycheck-result-android && git add -A
+          git -c user.name=ci -c user.email=ci@campusdoit.invalid commit -qm "key check android ${GITHUB_SHA}" --allow-empty
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" keycheck-result-android || true
       - name: Emulator diagnostics (logcat → annotation)
         if: always()
         run: |

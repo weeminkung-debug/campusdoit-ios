@@ -108,6 +108,11 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
                     self?.bridge?.webView?.evaluateJavaScript(js, completionHandler: nil)
                 }
             }
+            if action == "keySmoke" {   // 기기 열쇠 확인(5번방 #56): 꺼낼 수 없는 P-256 열쇠를 IndexedDB에 두고 재실행 뒤에도 남는지 → window.__key
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+                    self?.bridge?.webView?.evaluateJavaScript("(function(){window.__key={pending:true};(async function(){var o={secure:window.isSecureContext,subtle:!!(window.crypto&&crypto.subtle),origin:location.origin,ua:navigator.userAgent};try{var db=await new Promise(function(ok,no){var r=indexedDB.open('doit_kt',1);r.onupgradeneeded=function(){r.result.createObjectStore('k');};r.onsuccess=function(){ok(r.result);};r.onerror=function(){no(r.error);};});var pair=await new Promise(function(ok,no){var r=db.transaction('k').objectStore('k').get('pair');r.onsuccess=function(){ok(r.result);};r.onerror=function(){no(r.error);};});o.found=!!pair;if(!pair){pair=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},false,['sign','verify']);await new Promise(function(ok,no){var t=db.transaction('k','readwrite');t.objectStore('k').put(pair,'pair');t.oncomplete=function(){ok(1);};t.onerror=function(){no(t.error);};});o.made=true;}o.extractable=pair.privateKey.extractable;try{await crypto.subtle.exportKey('pkcs8',pair.privateKey);o.exportPriv='exported';}catch(e){o.exportPriv='blocked:'+e.name;}var raw=new Uint8Array(await crypto.subtle.exportKey('raw',pair.publicKey));var fp=new Uint8Array(await crypto.subtle.digest('SHA-256',raw));var b='';for(var i=0;i<fp.length;i++)b+=String.fromCharCode(fp[i]);o.id=btoa(b).split('+').join('-').split('/').join('_').split('=').join('');var msg=new TextEncoder().encode('coach|'+o.id+'|1763600000');var sig=await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'},pair.privateKey,msg);o.sigLen=sig.byteLength;o.verify=await crypto.subtle.verify({name:'ECDSA',hash:'SHA-256'},pair.publicKey,sig,msg);}catch(e){o.err=String(e);}window.__key=o;})();return 1;})()", completionHandler: nil)
+                }
+            }
             // ⑩ 홈 레이아웃 안정: +2s·+8s 주요 요소 위치 기록 → 판정 스텝에서 이동 0 검증
             if key == "home" {
                 [2.0, 8.0].forEach { d in
@@ -118,11 +123,11 @@ public class NativeTabsPlugin: CAPPlugin, CAPBridgedPlugin, UITabBarDelegate {
                 }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + (action == "adsSmoke" ? 14.0 : (action == nil ? (key == "home" ? 9.0 : 6.0) : 9.0))) { [weak self] in
-                let js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:!!(document.body.classList.contains('native-tabs')), err:(window.__smokeErr||''), logged:(typeof isLoggedIn==='function'?isLoggedIn():null), layout:(window.__layout||null), api:(window.__apiCheck||null), ads:(window.__ads||null), ts:(function(){try{var f=document.querySelectorAll('#signupView iframe').length;var ex=document.querySelectorAll('#signupView [data-ts-exempt]').length;return {iframes:f,exempt:ex,origin:location.origin,hdr:(window.__hdrSent===true)}}catch(e){return {err:String(e)}}})()})"
+                let js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:!!(document.body.classList.contains('native-tabs')), err:(window.__smokeErr||''), logged:(typeof isLoggedIn==='function'?isLoggedIn():null), layout:(window.__layout||null), api:(window.__apiCheck||null), ads:(window.__ads||null), key:(window.__key||null), ts:(function(){try{var f=document.querySelectorAll('#signupView iframe').length;var ex=document.querySelectorAll('#signupView [data-ts-exempt]').length;return {iframes:f,exempt:ex,origin:location.origin,hdr:(window.__hdrSent===true)}}catch(e){return {err:String(e)}}})()})"
                 self?.bridge?.webView?.evaluateJavaScript(js) { res, _ in
                     guard let self = self, var str = res as? String, let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
                     str = String(str.dropLast()) + String(format: ",\"splashHideAt\":%.3f,\"revealAt\":%.3f}", self.splashHideAt, self.revealAt)
-                    let fname = (action == "adsSmoke") ? "smoke_ads.json" : "smoke_\(key).json"   // 광고 캡처는 별도 파일(runSim의 score 캡처 보존)
+                    let fname = (action == "adsSmoke") ? "smoke_ads.json" : ((action == "keySmoke") ? "smoke_key_\(key).json" : "smoke_\(key).json")   // 광고 캡처는 별도 파일(runSim의 score 캡처 보존)
                     try? str.write(to: dir.appendingPathComponent(fname), atomically: true, encoding: .utf8)
                 }
             }

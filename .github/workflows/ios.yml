@@ -1,7 +1,7 @@
 name: iOS TestFlight
 on:
   push:
-    branches: [main]
+    branches: [main, keycheck]
   workflow_dispatch:
     inputs:
       upload:
@@ -11,6 +11,7 @@ concurrency: { group: ios-build, cancel-in-progress: true }
 jobs:
   build:
     runs-on: macos-26
+    permissions: { contents: write }
     timeout-minutes: 30
     env:
       FASTLANE_SKIP_UPDATE_CHECK: "1"
@@ -168,6 +169,11 @@ jobs:
           xcrun simctl terminate "$UDID" $B || true; sleep 1
           xcrun simctl launch "$UDID" $B -smokeTab score -smokeAction adsSmoke; sleep 17; cap 07_ads
           xcrun simctl terminate "$UDID" $B || true
+          # 기기 열쇠 확인: 1회차(만듦) → 앱 종료 → 2회차(남아 있는지)
+          xcrun simctl launch "$UDID" $B -smokeTab home -smokeAction keySmoke; sleep 13
+          xcrun simctl terminate "$UDID" $B || true; sleep 2
+          xcrun simctl launch "$UDID" $B -smokeTab my -smokeAction keySmoke; sleep 13
+          xcrun simctl terminate "$UDID" $B || true
           # ⑧ 오프라인: pf로 아웃바운드 차단 후 실행(번들 웹이라 홈 로드·탭바 기대)
           IF=$(route -n get 8.8.8.8 2>/dev/null | awk '/interface:/{print $2}'); echo "block on $IF"
           printf "block drop out quick on %s proto {tcp udp} from any to any\n" "$IF" | sudo pfctl -f - || true; sudo pfctl -e || true
@@ -177,6 +183,14 @@ jobs:
           sudo pfctl -d || true
           # 상태 JSON 수집
           DATA=$(xcrun simctl get_app_container "$UDID" $B data); cp "$DATA"/Documents/smoke_*.json smoke/ 2>/dev/null || true; ls smoke
+      - name: Key check result → branch keycheck-result-ios
+        if: always()
+        run: |
+          mkdir -p /tmp/res && cp smoke/smoke_key_*.json /tmp/res/ 2>/dev/null || true
+          ls smoke > /tmp/res/_ls.txt 2>/dev/null || true
+          cd /tmp/res && git init -q && git checkout -q -b keycheck-result-ios && git add -A
+          git -c user.name=ci -c user.email=ci@campusdoit.invalid commit -qm "key check ios ${GITHUB_SHA}" --allow-empty
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" keycheck-result-ios || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
