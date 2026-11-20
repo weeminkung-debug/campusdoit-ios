@@ -1,11 +1,11 @@
 /* 캠퍼스두잇 sw.js — 네트워크 우선 · 즉시 교체
    버전은 아래 VERSION 상수가 유일한 기준(주석에 버전 기재 금지 — 불일치 방지).
    배포 때마다 VERSION을 UI 빌드번호에 맞춰 올리면 됨. */
-const VERSION = "b592e";
+const VERSION = "b592r";
 const CACHE = "doit-" + VERSION;
 
 /* 설치 즉시 대기 없이 활성화 */
-const PRECACHE = ["appdata.json", "offline.html"];   /* 애플심사 09.11: 오프라인 폴백 셸 */   /* W 09.03: 평면 배포 */   /* [b581 ⓐ] 분할 데이터 프리캐시 (오프라인·TWA 첫 로드) */
+const PRECACHE = ["appdata.json", "offline.html", "cat_conv.png","cat_min.png","cat_dict.png","cat_hub.png","cat_tuition.png","cat_fee.png","cat_past.png?v=2"];   /* [b592g] 카테고리 아이콘 프리캐시(즉시 표시) */   /* 애플심사 09.11: 오프라인 폴백 셸 */   /* W 09.03: 평면 배포 */   /* [b581 ⓐ] 분할 데이터 프리캐시 (오프라인·TWA 첫 로드) */
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).catch(() => {}));
   self.skipWaiting();
@@ -27,6 +27,20 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;           // turnstile 등 외부는 통과
   if (url.pathname.startsWith("/api/")) return;              // [F5-10] API 응답(관리자·개인 데이터)은 캐시 적재·폴백 모두 제외
+
+  /* [b592g] 정적 자산(이미지·폰트)은 캐시 우선(즉시 표시) + 백그라운드 갱신 — 내비 아이콘 지연 해소 */
+  if (/\.(png|jpe?g|webp|gif|svg|ico|woff2?|ttf|otf)$/i.test(url.pathname)) {
+    e.respondWith(
+      caches.match(req).then((hit) => {
+        const net = fetch(req).then((res) => {
+          if (res && res.ok) { const c = res.clone(); caches.open(CACHE).then((cc) => cc.put(req, c)).catch(() => {}); }
+          return res;
+        }).catch(() => hit || Response.error());
+        return hit || net;
+      })
+    );
+    return;
+  }
 
   e.respondWith(
     fetch(req)

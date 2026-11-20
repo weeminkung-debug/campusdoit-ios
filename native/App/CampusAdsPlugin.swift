@@ -21,6 +21,8 @@ public class CampusAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenContentD
         CAPPluginMethod(name: "hideNativeCard", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise)
     ]
+    // 비맞춤 광고만(ATT 안 띄움 · 5번방 #67): npa=1
+    static func npaRequest() -> GADRequest { let r = GADRequest(); let x = GADExtras(); x.additionalParameters = ["npa": "1"]; r.register(x); return r }
     static let TEST_REWARDED = "ca-app-pub-3940256099942544/1712485313"
     static let TEST_BANNER   = "ca-app-pub-3940256099942544/2934735716"
     static let TEST_NATIVE   = "ca-app-pub-3940256099942544/3986624511"
@@ -43,9 +45,9 @@ public class CampusAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenContentD
 
     // ATT: 첫 광고 직전 1회. 거부/미결정이어도 광고는 비개인화로 진행
     @objc func requestATT(_ call: CAPPluginCall) {
-        if #available(iOS 14, *) {
-            ATTrackingManager.requestTrackingAuthorization { s in call.resolve(["status": ["notDetermined","restricted","denied","authorized"][Int(s.rawValue)]]) }
-        } else { call.resolve(["status": "authorized"]) }
+        // ATT 안 띄움(5번방 #67) — 창을 띄우지 않고 현재 상태만 돌려줌(설명 문구가 없어 요청 시 앱이 멈추므로 호출 금지)
+        if #available(iOS 14, *) { call.resolve(["status": ["notDetermined","restricted","denied","authorized"][Int(ATTrackingManager.trackingAuthorizationStatus.rawValue)], "prompt": false]) }
+        else { call.resolve(["status": "n/a", "prompt": false]) }
     }
 
     // 보상형: 사용자가 "광고 보고 결과 열기"를 탭한 직후에만 호출됨(정책: 개별 동의). SSV userId = users.id
@@ -53,7 +55,7 @@ public class CampusAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenContentD
         ensureInit(); rewardedCall = call; earned = false
         let uid = call.getString("userId") ?? ""
         let id = unit("ADMOB_REWARDED", CampusAdsPlugin.TEST_REWARDED)
-        GADRewardedAd.load(withAdUnitID: id, request: GADRequest()) { [weak self] ad, err in
+        GADRewardedAd.load(withAdUnitID: id, request: CampusAdsPlugin.npaRequest()) { [weak self] ad, err in
             guard let self = self else { return }
             if let err = err { self.finishRewarded(false, "load_failed:\(err.localizedDescription)"); return }
             if call.getBool("dryRun") ?? false { self.rewardedCall = nil; call.resolve(["rewarded": false, "loaded": true, "unit": id]); return }
@@ -82,7 +84,7 @@ public class CampusAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenContentD
                 b.translatesAutoresizingMaskIntoConstraints = false; host.addSubview(b)
                 let bottomInset = CGFloat(call.getInt("bottomInset") ?? 0)
                 NSLayoutConstraint.activate([b.centerXAnchor.constraint(equalTo: host.centerXAnchor), b.bottomAnchor.constraint(equalTo: host.safeAreaLayoutGuide.bottomAnchor, constant: -bottomInset)])
-                self.banner = b; b.load(GADRequest())
+                self.banner = b; b.load(CampusAdsPlugin.npaRequest())
             }
             self.banner?.isHidden = false
             call.resolve(["height": Double(self.banner?.adSize.size.height ?? 0)])
@@ -98,7 +100,7 @@ public class CampusAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenContentD
             if self.nativeAd != nil { self.placeNative(call); call.resolve(["loaded": true]); return }
             let opts = GADNativeAdViewAdOptions(); opts.preferredAdChoicesPosition = .topRightCorner
             self.nativeLoader = GADAdLoader(adUnitID: self.unit("ADMOB_NATIVE", CampusAdsPlugin.TEST_NATIVE), rootViewController: vc, adTypes: [.native], options: [opts])
-            self.nativeLoader?.delegate = self; self.nativeLoader?.load(GADRequest())
+            self.nativeLoader?.delegate = self; self.nativeLoader?.load(CampusAdsPlugin.npaRequest())
         }
     }
     public func adLoader(_ adLoader: GADAdLoader, didReceive nativeAd: GADNativeAd) {

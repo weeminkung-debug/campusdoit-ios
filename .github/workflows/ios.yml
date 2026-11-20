@@ -100,7 +100,7 @@ jobs:
           $PB -c "Add :ADMOB_REWARDED string ${ADMOB_REWARDED_IOS:-ca-app-pub-9862619885080241/8434580636}" $P
           $PB -c "Add :ADMOB_BANNER string ${ADMOB_BANNER_IOS:-ca-app-pub-3940256099942544/2934735716}" $P
           $PB -c "Add :ADMOB_NATIVE string ${ADMOB_NATIVE_IOS:-ca-app-pub-3940256099942544/3986624511}" $P
-          $PB -c "Add :NSUserTrackingUsageDescription string 맞춤 광고를 보여드리기 위해 사용해요. 허용하지 않아도 앱은 그대로 쓸 수 있어요." $P
+          # ATT 안 띄움(5번방 #67 결정): NSUserTrackingUsageDescription 넣지 않음, 비맞춤 광고(npa=1)
           $PB -c "Add :SKAdNetworkItems array" $P
           i=0; for n in cstr6suwn9 4fzdc2evr5 2fnua5tm8w ydx93a7ass p78axxw29g v72qych5uu ludvb6z3bs cp8zw746q7 3sh42y64q3 c6k4g5qg8m s39g8k73mm 3qy4746246 hs6bdukanm mlmmfzh3r3 v4nxqhlyqp wzmmz9fp6w su67r6k2v3 yclnxrl5pm t38b2kh725 7ug5zh24hu gta9lk7p23 vutu7akeur y5ghdn5j9k v9wttpbfk9 n38lu8286q 47vhws6wlr kbd757ywx3 9t245vhmpl a2p9lx4jpn 22mmun2rn5 4468km3ulz 2u9pt9hc89 8s468mfl3y ppxm28t8ap uw77j35x4d pwa73g5rt2 578prtvx9j 4dzt52r2t5 tl55sbb4fm e5fvkxwrpn 8c4e2ghe7u 3rd42ekr43 3qcr597p9d; do $PB -c "Add :SKAdNetworkItems:$i dict" $P; $PB -c "Add :SKAdNetworkItems:$i:SKAdNetworkIdentifier string $n.skadnetwork" $P; i=$((i+1)); done
           $PB -c "Print :GADApplicationIdentifier" $P; echo "SKAdNetwork items: $i"
@@ -108,11 +108,11 @@ jobs:
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
-            <key>NSPrivacyTracking</key><true/>
+            <key>NSPrivacyTracking</key><false/>
             <key>NSPrivacyTrackingDomains</key><array/>
             <key>NSPrivacyCollectedDataTypes</key><array>
-              <dict><key>NSPrivacyCollectedDataType</key><string>NSPrivacyCollectedDataTypeDeviceID</string><key>NSPrivacyCollectedDataTypeLinked</key><false/><key>NSPrivacyCollectedDataTypeTracking</key><true/><key>NSPrivacyCollectedDataTypePurposes</key><array><string>NSPrivacyCollectedDataTypePurposeThirdPartyAdvertising</string></array></dict>
-              <dict><key>NSPrivacyCollectedDataType</key><string>NSPrivacyCollectedDataTypeAdvertisingData</string><key>NSPrivacyCollectedDataTypeLinked</key><false/><key>NSPrivacyCollectedDataTypeTracking</key><true/><key>NSPrivacyCollectedDataTypePurposes</key><array><string>NSPrivacyCollectedDataTypePurposeThirdPartyAdvertising</string></array></dict>
+              <dict><key>NSPrivacyCollectedDataType</key><string>NSPrivacyCollectedDataTypeDeviceID</string><key>NSPrivacyCollectedDataTypeLinked</key><false/><key>NSPrivacyCollectedDataTypeTracking</key><false/><key>NSPrivacyCollectedDataTypePurposes</key><array><string>NSPrivacyCollectedDataTypePurposeThirdPartyAdvertising</string></array></dict>
+              <dict><key>NSPrivacyCollectedDataType</key><string>NSPrivacyCollectedDataTypeAdvertisingData</string><key>NSPrivacyCollectedDataTypeLinked</key><false/><key>NSPrivacyCollectedDataTypeTracking</key><false/><key>NSPrivacyCollectedDataTypePurposes</key><array><string>NSPrivacyCollectedDataTypePurposeThirdPartyAdvertising</string></array></dict>
             </array>
             <key>NSPrivacyAccessedAPITypes</key><array>
               <dict><key>NSPrivacyAccessedAPIType</key><string>NSPrivacyAccessedAPICategoryUserDefaults</string><key>NSPrivacyAccessedAPITypeReasons</key><array><string>CA92.1</string></array></dict>

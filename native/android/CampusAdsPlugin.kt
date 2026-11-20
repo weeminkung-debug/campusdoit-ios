@@ -14,6 +14,8 @@ import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import com.google.android.gms.ads.*
+import com.google.ads.mediation.admob.AdMobAdapter
+import android.os.Bundle
 import com.google.android.gms.ads.nativead.NativeAd
 import com.google.android.gms.ads.nativead.NativeAdView
 import com.google.android.gms.ads.rewarded.RewardedAd
@@ -24,6 +26,8 @@ import com.google.android.gms.ads.rewarded.ServerSideVerificationOptions
 @CapacitorPlugin(name = "CampusAds")
 class CampusAdsPlugin : Plugin() {
     companion object {
+        // 비맞춤 광고만(5번방 #67): npa=1
+        fun npaRequest(): AdRequest = AdRequest.Builder().addNetworkExtrasBundle(AdMobAdapter::class.java, Bundle().apply { putString("npa", "1") }).build()
         const val TEST_REWARDED = "ca-app-pub-3940256099942544/5224354917"
         const val TEST_BANNER = "ca-app-pub-3940256099942544/9214589741"
         const val TEST_NATIVE = "ca-app-pub-3940256099942544/2247696110"
@@ -46,7 +50,7 @@ class CampusAdsPlugin : Plugin() {
         ensureInit(); val uid = call.getString("userId") ?: ""; val dry = call.getBoolean("dryRun") ?: false
         val id = unit("ADMOB_REWARDED", TEST_REWARDED)
         activity.runOnUiThread {
-            RewardedAd.load(activity, id, AdRequest.Builder().build(), object : RewardedAdLoadCallback() {
+            RewardedAd.load(activity, id, npaRequest(), object : RewardedAdLoadCallback() {
                 override fun onAdFailedToLoad(e: LoadAdError) { call.resolve(JSObject().put("rewarded", false).put("error", "load_failed:" + e.message)) }
                 override fun onAdLoaded(ad: RewardedAd) {
                     if (dry) { call.resolve(JSObject().put("rewarded", false).put("loaded", true).put("unit", id)); return }
@@ -70,7 +74,7 @@ class CampusAdsPlugin : Plugin() {
                 val wdp = (root.width / activity.resources.displayMetrics.density).toInt()
                 b.setAdSize(AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(activity, if (wdp > 0) wdp else 360))
                 val lp = FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT); lp.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL; lp.bottomMargin = dp(56.0)
-                root.addView(b, lp); b.loadAd(AdRequest.Builder().build()); banner = b
+                root.addView(b, lp); b.loadAd(npaRequest()); banner = b
             }
             banner?.visibility = View.VISIBLE
             call.resolve(JSObject().put("height", 50))
@@ -95,7 +99,7 @@ class CampusAdsPlugin : Plugin() {
                 nativeView = v
                 if (!dry) place(call); call.resolve(JSObject().put("loaded", true).put("headline", ad.headline ?: ""))
             }.withAdListener(object : AdListener() { override fun onAdFailedToLoad(e: LoadAdError) { call.resolve(JSObject().put("loaded", false).put("error", e.message)) } }).build()
-            loader.loadAd(AdRequest.Builder().build())
+            loader.loadAd(npaRequest())
         }
     }
     private fun place(call: PluginCall) {
