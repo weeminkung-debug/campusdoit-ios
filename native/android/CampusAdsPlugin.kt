@@ -16,6 +16,8 @@ import com.getcapacitor.annotation.CapacitorPlugin
 import com.google.android.gms.ads.*
 import com.google.ads.mediation.admob.AdMobAdapter
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import com.google.android.gms.ads.nativead.NativeAd
 import com.google.android.gms.ads.nativead.NativeAdView
 import com.google.android.gms.ads.rewarded.RewardedAd
@@ -65,6 +67,76 @@ class CampusAdsPlugin : Plugin() {
             })
         }
     }
+    // ── 미리 받기 + 2편 연달아(5번방 #71). pool은 메인 스레드에서만 만짐. 50분 지난 광고는 버림
+    private val pool = ArrayList<RewardedAd>()
+    private val poolAt = ArrayList<Long>()
+    private var poolLoading = 0
+    private var poolErr: String? = null
+    private var chainCall: PluginCall? = null
+    private var chainNeed = 0
+    private var chainDone = 0
+    private var chainUid = ""
+    private var chainT0 = 0L
+    private var chainTries = 0
+    private val main = Handler(Looper.getMainLooper())
+    private fun fillPool(n: Int) {
+        val now = System.currentTimeMillis()
+        var i = 0
+        while (i < pool.size) { if (now - poolAt[i] > 3000000L) { pool.removeAt(i); poolAt.removeAt(i) } else i++ }
+        val want = n - pool.size - poolLoading
+        if (want <= 0) return
+        val id = unit("ADMOB_REWARDED", TEST_REWARDED)
+        for (k in 0 until want) {
+            poolLoading++
+            RewardedAd.load(activity, id, npaRequest(), object : RewardedAdLoadCallback() {
+                override fun onAdFailedToLoad(e: LoadAdError) { main.post { poolLoading--; poolErr = e.message } }
+                override fun onAdLoaded(ad: RewardedAd) { main.post { poolLoading--; pool.add(ad); poolAt.add(System.currentTimeMillis()); poolErr = null } }
+            })
+        }
+    }
+    @PluginMethod fun preloadRewarded(call: PluginCall) {
+        ensureInit(); val n = (call.getInt("count") ?: 2).coerceIn(1, 2)
+        activity.runOnUiThread { fillPool(n); call.resolve(JSObject().put("ready", pool.size).put("loading", poolLoading)) }
+    }
+    private fun chainEvent(type: String) { notifyListeners("rewardedEvent", JSObject().put("i", chainDone + 1).put("type", type).put("ms", System.currentTimeMillis() - chainT0)) }
+    @PluginMethod fun showRewardedChain(call: PluginCall) {
+        ensureInit()
+        activity.runOnUiThread {
+            if (chainCall != null) { call.resolve(JSObject().put("rewarded", 0).put("error", "busy")); return@runOnUiThread }
+            chainCall = call; chainNeed = (call.getInt("count") ?: 2).coerceIn(1, 2); chainDone = 0
+            chainUid = call.getString("userId") ?: ""; chainT0 = System.currentTimeMillis(); chainTries = 0; poolErr = null
+            fillPool(chainNeed); presentNext()
+        }
+    }
+    private fun presentNext() {
+        if (chainCall == null) return
+        if (pool.isEmpty()) {
+            if (poolLoading == 0) { val e = poolErr; if (e != null) { finishChain("load_failed:$e"); return }; fillPool(1) }
+            chainTries++
+            if (chainTries > 250) { finishChain("load_timeout"); return }
+            main.postDelayed({ presentNext() }, 100); return
+        }
+        val ad = pool.removeAt(0); poolAt.removeAt(0)
+        ad.setServerSideVerificationOptions(ServerSideVerificationOptions.Builder().setUserId(chainUid).build())
+        var earned = false
+        ad.fullScreenContentCallback = object : FullScreenContentCallback() {
+            override fun onAdShowedFullScreenContent() { chainEvent("shown") }
+            override fun onAdDismissedFullScreenContent() {
+                chainEvent("dismissed")
+                if (!earned) { finishChain("dismissed"); return }
+                chainDone++
+                if (chainDone >= chainNeed) finishChain(null) else presentNext()   // 사이 화면 없이 바로 다음 편
+            }
+            override fun onAdFailedToShowFullScreenContent(e: AdError) { finishChain("present_failed:" + e.message) }
+        }
+        chainTries = 0
+        ad.show(activity) { earned = true; chainEvent("earned") }
+        if (chainDone + 1 < chainNeed) fillPool(1)
+    }
+    private fun finishChain(err: String?) {
+        val c = chainCall ?: return; chainCall = null
+        val r = JSObject().put("rewarded", chainDone).put("ms", System.currentTimeMillis() - chainT0); if (err != null) r.put("error", err); c.resolve(r)
+    }
     @PluginMethod fun showBanner(call: PluginCall) {
         ensureInit()
         activity.runOnUiThread {
@@ -111,5 +183,5 @@ class CampusAdsPlugin : Plugin() {
     }
     @PluginMethod fun positionNativeCard(call: PluginCall) { activity.runOnUiThread { place(call); call.resolve() } }
     @PluginMethod fun hideNativeCard(call: PluginCall) { activity.runOnUiThread { nativeView?.visibility = View.GONE; call.resolve() } }
-    @PluginMethod fun status(call: PluginCall) { call.resolve(JSObject().put("att", "n/a").put("rewardedUnit", unit("ADMOB_REWARDED", TEST_REWARDED)).put("test", unit("ADMOB_REWARDED", "") == "")) }
+    @PluginMethod fun status(call: PluginCall) { call.resolve(JSObject().put("att", "n/a").put("rewardedUnit", unit("ADMOB_REWARDED", TEST_REWARDED)).put("test", unit("ADMOB_REWARDED", "") == "").put("chain", true).put("ready", pool.size)) }
 }

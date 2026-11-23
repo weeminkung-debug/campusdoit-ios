@@ -14,6 +14,8 @@ public class CampusAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenContentD
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "requestATT", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "showRewarded", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "preloadRewarded", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "showRewardedChain", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "showBanner", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "hideBanner", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "showNativeCard", returnType: CAPPluginReturnPromise),
@@ -29,6 +31,17 @@ public class CampusAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenContentD
     private var rewarded: GADRewardedAd?
     private var rewardedCall: CAPPluginCall?
     private var earned = false
+    // 미리 받아 둔 보상형 광고(5번방 #71). 50분 지나면 버리고 다시 받음(광고는 1시간 뒤 못 씀)
+    private var pool: [GADRewardedAd] = []
+    private var poolAt: [Date] = []
+    private var poolLoading = 0
+    private var poolErr: String?
+    private var chainCall: CAPPluginCall?
+    private var chainNeed = 0
+    private var chainDone = 0
+    private var chainUid = ""
+    private var chainT0 = Date()
+    private var chainTries = 0
     private var banner: GADBannerView?
     private var nativeLoader: GADAdLoader?
     private var nativeAd: GADNativeAd?
@@ -65,12 +78,84 @@ public class CampusAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenContentD
             DispatchQueue.main.async { ad.present(fromRootViewController: vc) { self.earned = true } }
         }
     }
+    // ── 미리 받기 + 2편 연달아(5번방 #71) ── 반드시 메인 스레드에서만 pool을 만짐
+    private func fillPool(_ n: Int) {
+        var i = 0
+        while i < pool.count { if Date().timeIntervalSince(poolAt[i]) > 3000 { pool.remove(at: i); poolAt.remove(at: i) } else { i += 1 } }
+        let want = n - pool.count - poolLoading
+        if want <= 0 { return }
+        let id = unit("ADMOB_REWARDED", CampusAdsPlugin.TEST_REWARDED)
+        for _ in 0..<want {
+            poolLoading += 1
+            GADRewardedAd.load(withAdUnitID: id, request: CampusAdsPlugin.npaRequest()) { [weak self] ad, err in
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    self.poolLoading -= 1
+                    if let ad = ad { self.pool.append(ad); self.poolAt.append(Date()); self.poolErr = nil }
+                    else { self.poolErr = err?.localizedDescription ?? "load" }
+                }
+            }
+        }
+    }
+    @objc func preloadRewarded(_ call: CAPPluginCall) {
+        ensureInit(); let n = max(1, min(2, call.getInt("count") ?? 2))
+        DispatchQueue.main.async { self.fillPool(n); call.resolve(["ready": self.pool.count, "loading": self.poolLoading]) }
+    }
+    private func chainEvent(_ type: String) {
+        notifyListeners("rewardedEvent", data: ["i": chainDone + 1, "type": type, "ms": Int(Date().timeIntervalSince(chainT0) * 1000)])
+    }
+    @objc func showRewardedChain(_ call: CAPPluginCall) {
+        ensureInit()
+        DispatchQueue.main.async {
+            if self.chainCall != nil || self.rewardedCall != nil { call.resolve(["rewarded": 0, "error": "busy"]); return }
+            self.chainCall = call; self.chainNeed = max(1, min(2, call.getInt("count") ?? 2)); self.chainDone = 0
+            self.chainUid = call.getString("userId") ?? ""; self.chainT0 = Date(); self.chainTries = 0; self.poolErr = nil
+            self.fillPool(self.chainNeed); self.presentNext()
+        }
+    }
+    private func presentNext() {
+        guard chainCall != nil else { return }
+        if pool.isEmpty {
+            if poolLoading == 0 { if let e = poolErr { finishChain("load_failed:\(e)"); return }; fillPool(1) }
+            chainTries += 1
+            if chainTries > 250 { finishChain("load_timeout"); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.presentNext() }; return
+        }
+        guard let vc = root() else { finishChain("no_vc"); return }
+        if vc.presentedViewController != nil {
+            chainTries += 1
+            if chainTries > 250 { finishChain("present_timeout"); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { self.presentNext() }; return
+        }
+        let ad = pool.removeFirst(); poolAt.removeFirst()
+        let ssv = GADServerSideVerificationOptions(); ssv.userIdentifier = chainUid; ad.serverSideVerificationOptions = ssv
+        ad.fullScreenContentDelegate = self; rewarded = ad; earned = false; chainTries = 0
+        ad.present(fromRootViewController: vc) { self.earned = true; self.chainEvent("earned") }
+        if chainDone + 1 < chainNeed { fillPool(1) }
+    }
+    private func finishChain(_ err: String?) {
+        guard let c = chainCall else { return }; chainCall = nil; rewarded = nil
+        var r: [String: Any] = ["rewarded": chainDone, "ms": Int(Date().timeIntervalSince(chainT0) * 1000)]; if let e = err { r["error"] = e }; c.resolve(r)
+    }
+    public func adWillPresentFullScreenContent(_ ad: GADFullScreenPresentingAd) { if chainCall != nil { chainEvent("shown") } }
     private func finishRewarded(_ ok: Bool, _ err: String?) {
         guard let c = rewardedCall else { return }; rewardedCall = nil; rewarded = nil
         var r: [String: Any] = ["rewarded": ok]; if let e = err { r["error"] = e }; c.resolve(r)
     }
-    public func adDidDismissFullScreenContent(_ ad: GADFullScreenPresentingAd) { finishRewarded(earned, earned ? nil : "dismissed") }
-    public func ad(_ ad: GADFullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) { finishRewarded(false, "present_failed:\(error.localizedDescription)") }
+    public func adDidDismissFullScreenContent(_ ad: GADFullScreenPresentingAd) {
+        if chainCall != nil {
+            chainEvent("dismissed")
+            if !earned { finishChain("dismissed"); return }
+            chainDone += 1; rewarded = nil
+            if chainDone >= chainNeed { finishChain(nil) } else { presentNext() }   // 사이 화면 없이 바로 다음 편
+            return
+        }
+        finishRewarded(earned, earned ? nil : "dismissed")
+    }
+    public func ad(_ ad: GADFullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
+        if chainCall != nil { finishChain("present_failed:\(error.localizedDescription)"); return }
+        finishRewarded(false, "present_failed:\(error.localizedDescription)")
+    }
 
     // 적응형 배너: 하단 탭바 위
     @objc func showBanner(_ call: CAPPluginCall) {
@@ -132,7 +217,7 @@ public class CampusAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenContentD
     @objc func hideNativeCard(_ call: CAPPluginCall) { DispatchQueue.main.async { self.nativeView?.isHidden = true; call.resolve() } }
     @objc func status(_ call: CAPPluginCall) {
         var att = "n/a"; if #available(iOS 14, *) { att = ["notDetermined","restricted","denied","authorized"][Int(ATTrackingManager.trackingAuthorizationStatus.rawValue)] }
-        call.resolve(["att": att, "rewardedUnit": unit("ADMOB_REWARDED", CampusAdsPlugin.TEST_REWARDED), "test": unit("ADMOB_REWARDED", "") == "" ])
+        call.resolve(["att": att, "rewardedUnit": unit("ADMOB_REWARDED", CampusAdsPlugin.TEST_REWARDED), "test": unit("ADMOB_REWARDED", "") == "", "chain": true, "ready": pool.count ])
     }
     public func bannerView(_ bannerView: GADBannerView, didFailToReceiveAdWithError error: Error) { bannerView.isHidden = true }
     public func bannerViewDidReceiveAd(_ bannerView: GADBannerView) { bannerView.isHidden = false }
