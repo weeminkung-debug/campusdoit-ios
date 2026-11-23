@@ -4208,6 +4208,7 @@ input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):
 <p>개인정보 관련 문의는 위 이메일로 접수하며, 접수 후 지체 없이 답변합니다.</p>
 <p><strong>9. 외부 서비스 이용</strong></p>
 <p>본 서비스는 입시 정보 수집에 YouTube API Services를 사용합니다. <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener">YouTube 서비스 약관</a>과 <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google 개인정보처리방침</a>이 적용됩니다.</p>
+<p>앱(iOS·Android)에서 '코칭 받기'를 누르면 Google AdMob 보상형 광고가 나옵니다. 이 광고는 맞춤형이 아닌 일반 광고로만 요청하며, 앱은 추적 허용 여부를 묻지 않습니다. 광고를 보여 주는 과정에서 Google은 기기 식별자, IP 주소로 추정한 대략적인 위치, 광고 시청 기록 등을 처리할 수 있으며, 이에는 Google 개인정보처리방침이 적용됩니다. 광고를 끝까지 보면 Google이 시청 확인을 운영자 서버로 보냅니다. 운영자는 광고 권한을 확인하는 데 필요한 값(앱이 기기 안에서 무작위로 만든 기기 식별값, 광고 거래 번호, 시각, 기기 종류, 권한이 열려 있는 시간, 코칭을 받은 횟수, 마지막 요청 시각)만 저장하고 30일 뒤 삭제합니다. 이 값은 이름·계정과 연결되지 않습니다. 체크 답변은 서버로 보내지 않습니다.</p>
 <p><strong>10. 고지</strong></p>
 <p>이 방침은 관련 법령·서비스 변경에 따라 개정될 수 있으며, 개정 시 앱 내 공지합니다.</p>
 <p>금칙어 사전 일부는 LDNOOBW(CC BY 4.0)·korcen(Apache-2.0)·badwords-ko(MIT) 오픈소스를 활용합니다.</p>
@@ -4254,6 +4255,7 @@ input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):
 <p>Privacy inquiries are received at the address above and answered without undue delay.</p>
 <p><strong>9. Third-party services</strong></p>
 <p>This service uses YouTube API Services to collect admissions information. The <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener">YouTube Terms of Service</a> and the <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a> apply.</p>
+<p>In the app (iOS and Android), tapping "Get coaching" shows a Google AdMob rewarded ad. These ads are requested as non-personalized ads only, and the app does not ask for tracking permission. To show the ad, Google may process data such as device identifiers, approximate location inferred from your IP address, and ad viewing history; Google's Privacy Policy applies to this processing. When you finish watching an ad, Google sends a viewing confirmation to the operator's server. The operator stores only what is needed to check ad access (a random device ID the app creates on your device, the ad transaction ID, the time, the device type, the access window, the number of coaching downloads, and the time of the last request) and deletes it after 30 days. These values are not linked to your name or account. Your checklist answers are not sent to the server.</p>
 <p><strong>10. Notice</strong></p>
 <p>This policy may be revised in line with applicable law or service changes. Any revision will be announced within the app.</p>
 <p>Part of our banned-word dictionary uses the open-source projects LDNOOBW (CC BY 4.0), korcen (Apache-2.0), and badwords-ko (MIT).</p>
@@ -9022,19 +9024,35 @@ async function _ckKey(){   /* iOS = Keychain 플러그인(웹뷰가 열쇠를 �
 async function _ckPost(path,obj){ var r=await fetch(API_BASE+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(obj),cache:"no-store"}); var j=null; try{ j=await r.json(); }catch(e){} return {status:r.status,body:j||{}}; }
 async function _ckStatus(id){ var r=await _ckPost("/api/v1/adpass/status",{id:id}); if(r.status!==200||!r.body.ok) throw "status"; r.body._at=Date.now(); return r.body; }
 function _ckCoachClear(st){ if(CKC.tm){ try{ clearTimeout(CKC.tm); }catch(e){} } CKC={st:st||"idle",data:null,until:0,msg:"",ad:0,tm:null}; }
+var CKT=null, CKA={key:null,at:0};   /* CKT = 구간 시간(ms)만 적음. 답·문항·식별값 없음 */
+function _ckT(k){ if(CKT&&CKT[k]==null) CKT[k]=Date.now()-CKT._0; }
+function _ckNap(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+async function _ckK(){ if(!CKA.key) CKA.key=await _ckKey(); return CKA.key; }
+function ckPre(){   /* 코디 화면이 그려질 때 광고 2편과 기기 열쇠를 미리 준비(누른 뒤 기다림을 줄임). 광고 쪽에 넘기는 값 없음 */
+  try{ if(_ckPlat()==="web"||CKC.st==="open"||CKC.st==="busy"||CKC.st==="web") return; if(Date.now()-CKA.at<60000) return; CKA.at=Date.now();
+    var P=Capacitor.Plugins.CampusAds; Promise.resolve(P.status()).then(function(s){ if(s&&s.chain) return P.preloadRewarded({count:2}); }).catch(function(){}); _ckK().catch(function(){}); }catch(e){} }
 async function ckCoach(){ if(CKC.st==="busy") return; if(_ckPlat()==="web"){ CKC.st="web"; renderCk(); return; }
-  _ckCoachClear("busy"); renderCk();
-  try{ var K=await _ckKey(), s=await _ckStatus(K.id);
-    for(var n=0; !s.open&&n<2; n++){ var before=s.ads||0; CKC.ad=before+1; renderCk();
-      var a=null; try{ a=await Capacitor.Plugins.CampusAds.showRewarded({userId:K.id}); }catch(e){ a=null; } if(!a||a.rewarded!==true) throw "ad";
-      CKC.ad=0; renderCk(); var ok=false; for(var i=0;i<8&&!ok;i++){ await new Promise(function(r){ setTimeout(r,1500); }); s=await _ckStatus(K.id); ok=!!(s.open||(s.ads||0)>before); } if(!ok) throw "ad"; }
-    if(!s.open) throw "ad";
-    var ts=Date.parse(s.now)+(Date.now()-s._at), b=await _ckPost("/api/v1/coach/bundle",{id:K.id,pub:K.pub,ts:ts,sig:await K.sign("coach|"+K.id+"|"+ts)});
+  _ckCoachClear("busy"); CKT={_0:Date.now()}; renderCk();
+  try{ var K=await _ckK(); _ckT("key"); var P=Capacitor.Plugins.CampusAds, chain=false; try{ chain=!!((await P.status())||{}).chain; }catch(e){ chain=false; }
+    var s=await _ckStatus(K.id); _ckT("status");
+    if(!s.open&&chain){   /* 2편을 사이 화면 없이 연달아. 1편 보상이 잡히는 순간부터 서버 확인을 물어 2편이 도는 동안 1편 확인을 끝냄 */
+      var base=s.ads||0, need=Math.min(2,Math.max(1,2-base)), cur=s, seen=base, stop=false, on=false, sub=null;
+      var ask=async function(){ if(on) return; on=true; var t0=Date.now(); while(!stop&&!cur.open){ await _ckNap(Date.now()-t0<6000?400:1000); if(stop) break; try{ var x=await _ckStatus(K.id); if(x.open||(x.ads||0)>seen){ seen=x.open?base+need:(x.ads||0); _ckT("ssv"+Math.max(1,seen-base)); } cur=x; }catch(e){} } };
+      try{ sub=await P.addListener("rewardedEvent",function(ev){ try{ _ckT("ad"+ev.i+"_"+ev.type); if(ev.type==="earned") ask(); if(ev.type==="shown"&&CKC.st==="busy"){ CKC.ad=base+ev.i; renderCk(); } }catch(e){} }); }catch(e){ sub=null; }
+      CKC.ad=base+1; renderCk(); var a=null; try{ a=await P.showRewardedChain({userId:K.id,count:need}); }catch(e){ a=null; }
+      _ckT("ads_done"); try{ if(sub&&sub.remove) sub.remove(); }catch(e){}
+      if(!a||a.rewarded!==need){ stop=true; throw "ad"; }
+      CKC.ad=0; renderCk(); ask(); var w0=Date.now(); while(!cur.open&&Date.now()-w0<12000) await _ckNap(100); stop=true; s=cur; if(!s.open) throw "ad"; }
+    for(var n=0; !s.open&&n<2; n++){ var before=s.ads||0; CKC.ad=before+1; renderCk();   /* 옛 앱(연달아 보기 없음)용 길 */
+      var a1=null; try{ a1=await P.showRewarded({userId:K.id}); }catch(e){ a1=null; } if(!a1||a1.rewarded!==true) throw "ad";
+      CKC.ad=0; renderCk(); var ok=false; for(var i=0;i<8&&!ok;i++){ await _ckNap(1500); s=await _ckStatus(K.id); ok=!!(s.open||(s.ads||0)>before); } if(!ok) throw "ad"; }
+    if(!s.open) throw "ad"; _ckT("open");
+    var ts=Date.parse(s.now)+(Date.now()-s._at), b=await _ckPost("/api/v1/coach/bundle",{id:K.id,pub:K.pub,ts:ts,sig:await K.sign("coach|"+K.id+"|"+ts)}); _ckT("bundle");
     if(b.status!==200||!b.body.ok||!b.body.data||!Array.isArray(b.body.data.lines)) throw "bundle";
     var left=Date.parse(b.body.until||s.until)-ts; if(!(left>0)) throw "bundle";
     CKC.data=b.body.data; CKC.until=Date.now()+left; CKC.st="open"; CKC.tm=setTimeout(function(){ _ckCoachClear("end"); try{ renderCk(); }catch(e){} },Math.min(left,2147000000));
   }catch(e){ _ckCoachClear("fail"); CKC.msg=(e==="ad")?"ck.ad_fail":"ck.coach_fail"; }
-  renderCk(); }
+  renderCk(); _ckT("shown"); try{ window.__ckTm=CKT; console.info("[ck-tm] "+JSON.stringify(CKT)); }catch(e){} }
 function _ckFill(tx,sid,sids,st){ return _ckDate2(tx).replace("{subj}",_ckCName(sid||"")).replace("{subjs}",(sids||[]).map(_ckCName).join(" · ")).replace("{step}",st||""); }
 function _ckSteps(r,sid){ if(!Array.isArray(r.steps)) return null; return r.steps.filter(function(s){ return _ckCond(s.when,{sub:sid}); }).map(_ckL1).join(" · "); }   /* {step} = 조건에 맞는 단계 이름들. 하나도 없으면 그 줄은 안 나감 */
 function _ckJosa(s){ return String(s).replace(/([가-힣])(을\(를\)|이\(가\)|은\(는\)|과\(와\)|\(으\)로)/g,function(m,c,j){ var k=(c.charCodeAt(0)-0xAC00)%28, b=k>0; if(j==="(으)로") return c+((b&&k!==8)?"으로":"로"); var pr={"을(를)":["을","를"],"이(가)":["이","가"],"은(는)":["은","는"],"과(와)":["과","와"]}[j]; return c+pr[b?0:1]; }); }   /* 앞 글자 받침에 따라 조사 고름 */
@@ -9078,7 +9096,7 @@ function _ckResHtml(a){ var D=CK.dict, d=_ckD(), by={}, out="";
   if(!out) return ""; var off=(COUNTRY_CFG.KR||cfg()).official;
   var dz=t("ck.disc").replace("{y}",D.year||""), dk=dz.lastIndexOf(" · ");
   return '<div class="ck-res">'+out+'<p class="ck-foot">'+_esc(dk>0?dz.slice(0,dk+3):dz+" ")+'<a href="'+off+'" target="_blank" rel="noopener noreferrer">'+_esc(dk>0?dz.slice(dk+3):t("official.kr"))+'</a></p></div>'; }
-function renderCk(){ var el=document.getElementById("ckBox"); if(!el) return; if(CK.st!=="ok"||!CK.dict){ el.innerHTML=""; el.style.display="none"; return; } el.style.display="";
+function renderCk(){ var el=document.getElementById("ckBox"); if(!el) return; if(CK.st!=="ok"||!CK.dict){ el.innerHTML=""; el.style.display="none"; return; } el.style.display=""; ckPre();
   var D=CK.dict, d=_ckD(), tabs=_ckTabs(); if(tabs.indexOf(CK.tab)<0) CK.tab=tabs[0]; var N=_ckNodes(CK.tab), say=D.say||{}, h="";
   var bot=function(lines,now){ return '<div class="ck-row'+(now?" ck-now":"")+'"><span class="ck-av" aria-hidden="true">'+_esc(t("ck.av"))+'</span><div class="ck-col"><span class="ck-name">'+_esc(t("ck.name"))+'</span>'+lines.map(function(x){return '<div class="ck-b">'+_esc(x)+'</div>';}).join("")+'</div></div>'; };
   var me=function(tx,key){ return '<div class="ck-row me"><button class="ck-edit" onclick="ckEdit(\''+key+'\')">'+_esc(t("ck.edit"))+'</button><div class="ck-me">'+_esc(tx)+'</div></div>'; };
