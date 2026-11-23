@@ -7851,6 +7851,7 @@ async function boot(){
   applyI18n();                       // i18n 로드 후 전체 문구 적용
   render(clamp(+sc.value));
   try{ restoreSession(); }catch(e){}   // 토큰 있으면 로그인 상태 복원
+  try{ ckBoot(); }catch(e){}   // [b592v] 앱 시작 때 코칭 미리 준비
   setTimeout(function(){ ensureAppData().catch(function(){}); },1500);   /* [b581] 데이터 유휴 프리로드 */
 }
 // ===== 광고 자리 (유동 조절) — 숫자만 바꾸면 칸 추가/삭제 =====
@@ -8949,11 +8950,12 @@ function _ckSave(){ try{ CK.d.at=Date.now(); localStorage.setItem(CK_KEY,JSON.st
 function _ckD(){ if(!CK.d) CK.d=_ckLoad(); return CK.d; }
 function ckGrade(){ var ey=+_ckD().ey; if(!ey) return ""; var g=_ckAY()-ey+1; return g<1?"g1":(g>3?"grad":"g"+g); }
 function ckSetGrade(g){ var i=CK_GRADES.indexOf(g); if(i<0) return; _ckD().ey=_ckAY()-i; _ckSave(); }
-function ckWipe(){ try{ localStorage.removeItem(CK_KEY); }catch(e){} CK.d=null; CK.edit=""; CKP={grp:"",cur:"",sel:null}; try{ CKA.gen++; CKA.got=null; CKA.run=null; CKA.pend=false; CKA.at=Date.now(); }catch(e){} try{ _ckCoachClear("idle"); }catch(e){} try{ renderCk(); }catch(e){} }
+function ckWipe(){ try{ localStorage.removeItem(CK_KEY); }catch(e){} CK.d=null; CK.edit=""; CKP={grp:"",cur:"",sel:null}; try{ CKA.gen++; CKA.got=null; CKA.run=null; CKA.pend=false; CKA.s=null; CKA.at=Date.now(); }catch(e){} try{ _ckCoachClear("idle"); }catch(e){} try{ renderCk(); }catch(e){} }
 function _coordReady(){ var p=COORD&&COORD.profile; return !!(p&&p.fields&&p.fields.length&&p.gpa&&ckGrade()); }
 async function _ckGet(name){ try{ var r=await fetch(API_BASE+"/api/v1/coord/dict/"+name); if(!r.ok) return null; var j=await r.json(); return (j&&j.ok&&j.verified===true&&j.data)?j:null; }catch(e){ return null; } }
-async function ckLoadDicts(){ if(CK.st==="ok") return; var a=await _ckGet("check"), c=await _ckGet("courses");
-  if(a&&a.data&&Array.isArray(a.data.areas)&&a.data.areas.length){ CK.dict=a.data; CK.courses=(c&&Array.isArray(c.data)&&c.data.length)?c.data:null; CK.csrc=c?(c.source||""):""; var fx=await _ckGet("factors"); CK.factors=(fx&&Array.isArray(fx.data))?fx.data:[]; CK.cmap={}; (CK.courses||[]).forEach(function(x){ CK.cmap[x.id]=x; }); CK.st="ok"; } else CK.st="off"; }
+function ckLoadDicts(){ if(CK.st==="ok") return Promise.resolve(); if(!CK._ld) CK._ld=_ckLoadDicts().then(function(){ CK._ld=null; },function(){ CK._ld=null; }); return CK._ld; }
+async function _ckLoadDicts(){ var G=await Promise.all([_ckGet("check"),_ckGet("courses"),_ckGet("factors")]), a=G[0], c=G[1];
+  if(a&&a.data&&Array.isArray(a.data.areas)&&a.data.areas.length){ CK.dict=a.data; CK.courses=(c&&Array.isArray(c.data)&&c.data.length)?c.data:null; CK.csrc=c?(c.source||""):""; var fx=G[2]; CK.factors=(fx&&Array.isArray(fx.data))?fx.data:[]; CK.cmap={}; (CK.courses||[]).forEach(function(x){ CK.cmap[x.id]=x; }); CK.st="ok"; } else CK.st="off"; }
 async function ckInit(){ CK.d=_ckLoad(); renderCk(); var u=""; try{ u=await _srUid(); }catch(e){}
   if(CK.d.uid&&CK.d.uid!==u){ try{ localStorage.removeItem(CK_KEY); }catch(e){} CK.d=_ckLoad(); if(!_coordReady()){ try{ showCoordForm(); }catch(e){} return; } }
   if(u&&CK.d.uid!==u){ CK.d.uid=u; if(CK.d.ey) _ckSave(); }
@@ -9023,34 +9025,42 @@ async function _ckKey(){   /* iOS = Keychain 플러그인(웹뷰가 열쇠를 �
   return {id:id,pub:_ckB64u(raw),sign:async function(m){ return _ckB64u(await crypto.subtle.sign({name:"ECDSA",hash:"SHA-256"},pair.privateKey,new TextEncoder().encode(m))); }}; }
 async function _ckPost(path,obj){ var r=await fetch(API_BASE+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(obj),cache:"no-store"}); var j=null; try{ j=await r.json(); }catch(e){} return {status:r.status,body:j||{}}; }
 async function _ckStatus(id){ var r=await _ckPost("/api/v1/adpass/status",{id:id}); if(r.status!==200||!r.body.ok) throw "status"; r.body._at=Date.now(); return r.body; }
-function _ckCoachClear(st){ if(CKC.tm){ try{ clearTimeout(CKC.tm); }catch(e){} } CKC={st:st||"idle",data:null,until:0,msg:"",ad:0,tm:null}; }
-var CKT=null, CKA={key:null,at:0,pend:false,run:null,got:null,gen:0};   /* CKT = 구간 시간(ms)만 적음. 답·문항·식별값 없음 / CKA = 미리 준비 상태(메모리에만) */
+function _ckCoachClear(st){ try{ localStorage.removeItem(CK_UK); }catch(e){} if(CKC.tm){ try{ clearTimeout(CKC.tm); }catch(e){} } CKC={st:st||"idle",data:null,until:0,msg:"",ad:0,tm:null}; }
+var CKT=null, CKA={key:null,at:0,pend:false,run:null,got:null,gen:0,s:null,chain:false,rt:null};
+var CK_UK="doit_ck_until_v1";   /* 기기에 두는 것은 "열림 만료 시각" 숫자 하나뿐(5번방 #76). 코칭 글은 저장하지 않음 */
+function _ckHot(){ try{ var u=+localStorage.getItem(CK_UK)||0; if(u>Date.now()) return u; if(u) localStorage.removeItem(CK_UK); }catch(e){} return 0; }
+function _ckLeftTx(until){ var left=Math.max(0,until-Date.now()), hh=Math.floor(left/3600000), mm=Math.floor(left%3600000/60000); return t("ck.coach_open").replace("{t}",(left<60000?t("ck.left_lt1"):hh<1?t("ck.left_m"):mm===0?t("ck.left_h"):t("ck.left_hm")).replace("{h}",hh).replace("{m}",mm)); }   /* CKT = 구간 시간(ms)만 적음. 답·문항·식별값 없음 / CKA = 미리 준비 상태(메모리에만) */
 function _ckT(k){ if(CKT&&CKT[k]==null) CKT[k]=Date.now()-CKT._0; }
 function _ckNap(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
 async function _ckK(){ if(!CKA.key) CKA.key=await _ckKey(); return CKA.key; }
 async function _ckBundle(K,s){ var ts=Date.parse(s.now)+(Date.now()-s._at), b=await _ckPost("/api/v1/coach/bundle",{id:K.id,pub:K.pub,ts:ts,sig:await K.sign("coach|"+K.id+"|"+ts)});
   if(b.status!==200||!b.body.ok||!b.body.data||!Array.isArray(b.body.data.lines)) throw "bundle"; var left=Date.parse(b.body.until||s.until)-ts; if(!(left>0)) throw "bundle"; return {data:b.body.data,left:left}; }
-function _ckOpen(r){ if(CKC.tm){ try{ clearTimeout(CKC.tm); }catch(e){} } CKC={st:"open",data:r.data,until:Date.now()+r.left,msg:"",ad:0,tm:setTimeout(function(){ _ckCoachClear("end"); try{ renderCk(); }catch(e){} },Math.min(r.left,2147000000))}; }   /* 받은 묶음은 화면 메모리에만 */
+function _ckOpen(r){ if(CKC.tm){ try{ clearTimeout(CKC.tm); }catch(e){} } CKC={st:"open",data:r.data,until:Date.now()+r.left,msg:"",ad:0,tm:setTimeout(function(){ _ckCoachClear("end"); try{ renderCk(); }catch(e){} },Math.min(r.left,2147000000))}; try{ localStorage.setItem(CK_UK,String(CKC.until)); }catch(e){} }   /* 받은 묶음은 화면 메모리에만. 기기에는 만료 시각만 */
 async function _ckAuto(){   /* 코디 화면에 들어올 때 한 번: 열려 있으면 묶음을 미리 받아 버튼 없이 바로 보여 주고, 닫혀 있으면 광고 2편을 미리 받아 둠. 닫힌 상태에서는 묶음 요청 0 */
-  var g0=CKA.gen, idle=(CKC.st==="idle"); if(idle){ CKA.pend=true; setTimeout(function(){ if(CKA.pend){ CKA.pend=false; try{ renderCk(); }catch(e){} } },2500); }
-  try{ var K=await _ckK(), s=await _ckStatus(K.id);
-    if(s.open){ if(idle&&!CKC.data){ var r=await _ckBundle(K,s); if(CKA.gen!==g0) return;   /* 받는 사이 로그아웃했으면 늦게 온 묶음은 버림 */
+  var g0=CKA.gen, idle=(CKC.st==="idle"), hot=_ckHot(), T0=Date.now(), M={hot:hot?1:0}; if(idle){ CKA.pend=true; setTimeout(function(){ if(CKA.pend&&CKA.gen===g0){ CKA.pend=false; try{ renderCk(); }catch(e){} } },hot?8000:2500); }
+  try{ var K=await _ckK(); M.key=Date.now()-T0; var s=await _ckStatus(K.id); M.status=Date.now()-T0; if(CKA.gen!==g0) return; CKA.s=s;
+    if(!s.open){ try{ localStorage.removeItem(CK_UK); }catch(e){} }
+    if(s.open){ if(idle&&!CKC.data){ var r=await _ckBundle(K,s); M.bundle=Date.now()-T0; if(CKA.gen!==g0) return;   /* 받는 사이 로그아웃했으면 늦게 온 묶음은 버림 */
       if(CKC.st==="idle") _ckOpen(r); else CKA.got=r; } }
-    else{ var P=Capacitor.Plugins.CampusAds, st=await P.status(); if(st&&st.chain) P.preloadRewarded({count:2}).catch(function(){}); }
+    else{ var P=Capacitor.Plugins.CampusAds, st=await P.status(); CKA.chain=!!(st&&st.chain); if(CKA.chain){ M.preload=Date.now()-T0; P.preloadRewarded({count:2}).catch(function(){});
+        if(CKA.rt) clearTimeout(CKA.rt); CKA.rt=setTimeout(function(){ CKA.rt=null; CKA.at=0; ckPre(); },3005000); } }   /* 미리 받은 광고는 약 1시간 뒤 못 씀 → 50분 지나면 다시 묻고 다시 받음(앱 쪽도 50분 지난 광고는 버리고 띄우지 않음, 5번방 #77) */
   }catch(e){}
+  try{ window.__ckPre=M; console.info("[ck-pre] "+JSON.stringify(M)); }catch(e){}   /* 구간 시간(ms)만 */
   if(CKA.gen!==g0) return;
   var was=CKA.pend; CKA.pend=false; if(was||CKC.st==="open"){ try{ renderCk(); }catch(e){} } }
+function ckBoot(){ if(_ckPlat()==="web"||!isLoggedIn()) return; ckPre(); try{ ckLoadDicts(); }catch(e){} }   /* 앱을 켜자마자: 열림 묻기 → 열려 있으면 묶음, 닫혀 있으면 광고 2편 미리 받기 + 문항 사전 미리 받기 */
 function ckPre(){ try{ if(!isLoggedIn()) return; if(_ckPlat()==="web"||CKC.st==="open"||CKC.st==="busy"||CKC.st==="web") return; if(Date.now()-CKA.at<60000) return; CKA.at=Date.now(); CKA.run=_ckAuto(); }catch(e){} }
 async function ckCoach(){ if(CKC.st==="busy") return; if(_ckPlat()==="web"){ CKC.st="web"; renderCk(); return; }
   var g0=CKA.gen; _ckCoachClear("busy"); CKT={_0:Date.now()}; renderCk();
   try{ if(CKA.run){ var w=CKA.run; CKA.run=null; try{ await w; }catch(e){} } if(CKA.gen!==g0) return; if(CKA.got){ var g=CKA.got; CKA.got=null; _ckOpen(g); renderCk(); return; }
-    var K=await _ckK(); _ckT("key"); var P=Capacitor.Plugins.CampusAds, chain=false; try{ chain=!!((await P.status())||{}).chain; }catch(e){ chain=false; }
-    var s=await _ckStatus(K.id), bp=null; _ckT("status");
+    var K=await _ckK(); _ckT("key"); var P=Capacitor.Plugins.CampusAds, chain=false, s=null, bp=null, c0=CKA.s; CKA.s=null;
+    if(c0&&!c0.open&&!(c0.ads>0)&&CKA.chain&&Date.now()-c0._at<300000){ chain=true; s=c0; _ckT("status_pre"); }
+    else{ try{ chain=!!((await P.status())||{}).chain; }catch(e){ chain=false; } s=await _ckStatus(K.id); _ckT("status"); }
     if(!s.open&&chain){   /* 2편을 사이 화면 없이 연달아. 1편 보상이 잡히는 순간부터 서버 확인을 묻고, 열림이 확인되는 순간(광고가 아직 도는 중이어도) 묶음을 받아 둠 */
       var base=s.ads||0, need=Math.min(2,Math.max(1,2-base)), cur=s, seen=base, stop=false, on=false, sub=null;
       var ask=async function(){ if(on) return; on=true; var t0=Date.now(); while(!stop&&!cur.open){ await _ckNap(Date.now()-t0<6000?400:1000); if(stop) break; try{ var x=await _ckStatus(K.id); if(x.open||(x.ads||0)>seen){ seen=x.open?base+need:(x.ads||0); _ckT("ssv"+Math.max(1,seen-base)); } cur=x; if(x.open&&!bp){ bp=_ckBundle(K,x); bp.then(function(){ _ckT("bundle"); },function(){}); } }catch(e){} } };
       try{ sub=await P.addListener("rewardedEvent",function(ev){ try{ _ckT("ad"+ev.i+"_"+ev.type); if(ev.type==="earned") ask(); if(ev.type==="shown"&&CKC.st==="busy"){ CKC.ad=base+ev.i; renderCk(); } }catch(e){} }); }catch(e){ sub=null; }
-      CKC.ad=base+1; renderCk(); var a=null; try{ a=await P.showRewardedChain({userId:K.id,count:need}); }catch(e){ a=null; }
+      CKC.ad=base+1; renderCk(); _ckT("ad_call"); var a=null; try{ a=await P.showRewardedChain({userId:K.id,count:need}); }catch(e){ a=null; }
       _ckT("ads_done"); try{ if(sub&&sub.remove) sub.remove(); }catch(e){}
       if((!a||a.rewarded!==need)&&!cur.open){ stop=true; throw "ad"; }
       CKC.ad=0; renderCk(); ask(); var w0=Date.now(); while(!cur.open&&Date.now()-w0<12000) await _ckNap(100); stop=true; s=cur; if(!s.open) throw "ad"; }
@@ -9082,8 +9092,7 @@ function _ckCoachList(L,a){ return _ckCoachAll(L)[a.id]||[]; }
 function _ckTodoList(C,a,last){ var by=_ckCoachAll(C.todos), T; if(C.todo_place==="end"){ if(!last) return []; T=[]; (C.todos||[]).forEach(function(r){ var k=r.area||"*"; if(by[k]){ T=T.concat(by[k]); by[k]=null; } }); } else { T=(by[a.id]||[]); if(last) T=T.concat(by["*"]||[]); } return T.slice(0,C.todo_max||3); }   /* todo_place "end" = 탭마다 코칭 맨 끝에 한 번, 배열 순서 */   /* area 없는 할 일 = 그 탭 마지막 영역 아래에 한 번 */
 function _ckCoachHtml(a,bot,last){ var h="";
   if(CKC.st==="open"&&CKC.data){ var C=CKC.data, L=_ckCoachList(C.lines,a), T=_ckTodoList(C,a,last); if(!L.length&&!T.length) return "";
-    var left=Math.max(0,CKC.until-Date.now()), hh=Math.floor(left/3600000), mm=Math.floor(left%3600000/60000);
-    h+='<div class="ck-open">'+_esc(t("ck.coach_open").replace("{t}",(left<60000?t("ck.left_lt1"):hh<1?t("ck.left_m"):mm===0?t("ck.left_h"):t("ck.left_hm")).replace("{h}",hh).replace("{m}",mm)))+'</div>';
+    h+='<div class="ck-open">'+_esc(_ckLeftTx(CKC.until))+'</div>';
     var R9=(C.r9||[]).filter(function(x){ return x.area===a.id&&COORD.goal&&x.univ===COORD.goal.univ; }), r9b="";
     if(R9.length&&L.length){ var TP=C.r9_tpl||{}, sep=TP.sub_sep||" · ", rl=[];
       R9.forEach(function(x){ if(Array.isArray(x.factors)) x.factors.forEach(function(f){ var subs=(f.subs||[]).filter(function(s){return s;}); rl.push({f:f.factor||"",s:subs.join(sep)}); }); else if(_ckL1(x)) rl.push({raw:_ckL1(x)}); });
@@ -9096,7 +9105,7 @@ function _ckCoachHtml(a,bot,last){ var h="";
     return h; }
   if(CKC.st==="web"){ var sb=["ios","android"].filter(function(k){return CK_STORE[k];}).map(function(k){ return '<a class="'+(k==="ios"?"ck-bdg ":"")+'ck-cta ck-store" href="'+CK_STORE[k]+'" target="_blank" rel="noopener noreferrer">'+(k==="ios"?'<img class="ck-bimg" src="'+CK_BADGE_IOS+'" alt="'+_esc(t("ck.web_ios"))+'">':'<svg class="ck-dl" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/></svg><span>'+_esc(t(k==="ios"?"ck.web_ios":"ck.web_and"))+'</span>')+'</a>'; }).join("");
     return '<div class="ck-res ck-web"><div class="ck-rh">'+_esc(t("ck.web_app"))+'</div><p class="ck-cs" style="text-align:left">'+_esc(t("ck.web_app_sub"))+'</p>'+(sb?'<div class="ck-stores">'+sb+'</div>':'')+'</div>'; }
-  if(CKA.pend&&CKC.st==="idle") return "";   /* 열려 있는지 묻는 잠깐 동안은 버튼을 그리지 않음(열려 있으면 바로 코칭, 아니면 버튼) */
+  if(CKA.pend&&CKC.st==="idle"){ var hu=_ckHot(); return hu?'<div class="ck-open" role="status">'+_esc(_ckLeftTx(hu))+'</div>':""; }   /* 열려 있는지 묻는 잠깐 동안은 버튼을 그리지 않음. 만료 전(기기에 적어 둔 시각)이면 코칭 머리줄부터 그리고 글이 오면 바로 채움 */
   if(CKC.st==="busy") return '<div class="ck-wait" role="status">'+_esc(CKC.ad?t("ck.ad_n").replace("{i}",CKC.ad):t("ck.ad_wait"))+'</div>';
   if(CKC.st==="fail"||CKC.st==="end") h+='<p class="ck-cs ck-warn" role="status">'+_esc(t(CKC.st==="end"?"ck.coach_end":CKC.msg))+'</p>';
   return h+'<button class="ck-cta" onclick="ckCoach()">'+_esc(t("ck.coach"))+'</button><p class="ck-cs">'+_esc(t("ck.coach_sub"))+'</p>'; }

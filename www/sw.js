@@ -1,7 +1,7 @@
 /* 캠퍼스두잇 sw.js — 네트워크 우선 · 즉시 교체
    버전은 아래 VERSION 상수가 유일한 기준(주석에 버전 기재 금지 — 불일치 방지).
    배포 때마다 VERSION을 UI 빌드번호에 맞춰 올리면 됨. */
-const VERSION = "b592u";
+const VERSION = "b592v";
 const CACHE = "doit-" + VERSION;
 
 /* 설치 즉시 대기 없이 활성화 */
