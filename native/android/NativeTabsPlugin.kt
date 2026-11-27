@@ -26,6 +26,7 @@ class NativeTabsPlugin : Plugin() {
     private val h = Handler(Looper.getMainLooper())
     private var t0 = System.currentTimeMillis()
     private var revealAt = -1.0
+    private var polls = -1
     private var programmatic = false   // 5번방 #120: 안드로이드는 selectedItemId를 코드로 바꿔도 선택 리스너가 불림 → 웹 goApp이 다시 돌아 로그인 화면을 덮음
 
     override fun load() {
@@ -55,8 +56,8 @@ class NativeTabsPlugin : Plugin() {
     }
     private fun pollDom(n: Int) {
         val wv = bridge?.webView ?: return
-        wv.evaluateJavascript("(function(){try{document.documentElement.style.setProperty('--native-tab-inset','56px'); document.body.classList.add('native-tabs'); return (document.readyState==='complete'&&!!document.getElementById('bottomNav'))?1:0;}catch(e){return 0}})()") { r ->
-            if (r == "1" || n > 60) { h.postDelayed({ nav?.visibility = android.view.View.VISIBLE; if (revealAt < 0) revealAt = (System.currentTimeMillis() - t0) / 1000.0 }, 1300) }
+        wv.evaluateJavascript("(function(){try{document.documentElement.style.setProperty('--native-tab-inset','56px'); document.body.classList.add('native-tabs'); return (document.readyState!=='loading'&&!!document.getElementById('bottomNav'))?1:0;}catch(e){return 0}})()") { r ->
+            polls = n; if (r == "1" || n > 60) { h.postDelayed({ nav?.visibility = android.view.View.VISIBLE; if (revealAt < 0) revealAt = (System.currentTimeMillis() - t0) / 1000.0 }, 1300) }
             else h.postDelayed({ pollDom(n + 1) }, 100)
         }
     }
@@ -71,13 +72,13 @@ class NativeTabsPlugin : Plugin() {
         if (action == "runSim") h.postDelayed({ bridge?.webView?.evaluateJavascript("(function(){try{localStorage.removeItem('doit_token_v1');}catch(e){} try{goApp(); setScope('KR'); SCORE_TOUCHED=true; document.getElementById('scoreBigNum').value='88'; runSim();}catch(e){window.__smokeErr=String(e);} return 1;})()", null) }, 8000)
         if (action == "adsSmoke") h.postDelayed({ bridge?.webView?.evaluateJavascript("(function(){window.__ads={}; try{ var P=Capacitor.Plugins.CampusAds; P.status().then(function(s){window.__ads.status=s;}); P.showRewarded({userId:'0',dryRun:true}).then(function(r){window.__ads.rewarded=r;}).catch(function(e){window.__ads.rewarded={error:String(e)};}); P.showNativeCard({top:300,height:47,dryRun:true}).then(function(r){window.__ads.native=r;}).catch(function(e){window.__ads.native={error:String(e)};}); }catch(e){window.__ads.err=String(e);} return 1;})()", null) }, 3000)
         h.postDelayed({
-            val js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:document.body.classList.contains('native-tabs'), err:(window.__smokeErr||''), logged:(typeof isLoggedIn==='function'?isLoggedIn():null), inset:getComputedStyle(document.documentElement).getPropertyValue('--native-tab-inset'), ads:(window.__ads||null)})"
+            val js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:document.body.classList.contains('native-tabs'), err:(window.__smokeErr||''), rs:document.readyState, logged:(typeof isLoggedIn==='function'?isLoggedIn():null), inset:getComputedStyle(document.documentElement).getPropertyValue('--native-tab-inset'), ads:(window.__ads||null)})"
             bridge?.webView?.evaluateJavascript(js) { r ->
                 try {
                     var s = r ?: "\"{}\""; s = JSONObject("{\"v\":$s}").getString("v")
                     val o = JSONObject(s); o.put("revealAt", revealAt); o.put("tabVisible", nav?.visibility == android.view.View.VISIBLE)
                     val dv = activity?.window?.decorView; val n = nav; val loc = IntArray(2); n?.getLocationOnScreen(loc)
-                    o.put("padTop", dv?.paddingTop ?: -1); o.put("padBottom", dv?.paddingBottom ?: -1); o.put("tabBottom", if (n != null) loc[1] + n.height else -1); o.put("screenH", dv?.height ?: -1); o.put("sdk", android.os.Build.VERSION.SDK_INT)
+                    o.put("padTop", dv?.paddingTop ?: -1); o.put("padBottom", dv?.paddingBottom ?: -1); o.put("tabBottom", if (n != null) loc[1] + n.height else -1); o.put("screenH", dv?.height ?: -1); o.put("sdk", android.os.Build.VERSION.SDK_INT); o.put("polls", polls)
                     val dir = activity?.getExternalFilesDir(null) ?: activity?.filesDir
                     val fname = if (action == "adsSmoke") "smoke_ads.json" else "smoke_$key.json"
                     File(dir, fname).writeText(o.toString())
