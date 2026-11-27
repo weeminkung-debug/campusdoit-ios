@@ -80,7 +80,7 @@ jobs:
           cp native/android/NativeTabsPlugin.kt native/android/CampusAdsPlugin.kt native/android/MainActivity.kt native/android/AppUpdate.kt $D/java/com/campusdoit/app/
           # #97: 화면 → 기기 준비됨 신호(웹 정본에 이미 있으면 그대로) + 스플래시(보라+두잇이, W 승인 첫 화면 1안)
           IX=$D/assets/public/index.html
-          grep -q "AppUpdate.ready" "$IX" || python3 - "$IX" <<'PY'
+          grep -q "Plugins.AppUpdate" "$IX" || python3 - "$IX" <<'PY'
           import sys; p=sys.argv[1]; s=open(p,encoding='utf-8').read()
           tag='<script>(function(){try{var P=window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.AppUpdate;if(P)P.ready();console.log("CDUMARK:"+(window.__CDUMARK||"bundle"))}catch(e){}})()</script>'
           s=s.replace('</body>',tag+'</body>',1) if '</body>' in s else s+tag
