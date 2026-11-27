@@ -179,7 +179,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
           ls -l /dev/kvm || echo "no /dev/kvm"
-      - name: Emulator smoke (6항)
+      - name: Emulator smoke (7항)
         continue-on-error: true   # GitHub 러너 에뮬 부팅 불안정 — 빌드·서명(AAB·keystore) 산출을 막지 않음
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -216,13 +216,16 @@ jobs:
           item(5,'보상형·네이티브 광고 로드(테스트 단위)', rw.get('loaded')==True and na.get('loaded')==True, f"rw={rw} na={na}")
           sh_=int(h.get('screenH',-1)); tb=int(h.get('tabBottom',-1)); pb=int(h.get('padBottom',-1)); pt=int(h.get('padTop',-1))
           item(6,'막대 겹침 없음(상단 여백>0·탭바가 탐색 막대 위)', pt>0 and pb>0 and 0<tb<=sh_-pb+1, f"sdk={h.get('sdk')} padTop={pt} padBottom={pb} tabBottom={tb} screenH={sh_}")
+          try: ct=open('smoke/cam.txt').read()
+          except Exception: ct=''
+          item(7,'사진 찍기 → 카메라 앱 뜸', ('camera' in ct.lower()) and ('campusdoit' not in ct), ct.strip()[:200])
           ok=all(r[2] for r in R)
           def _ann(t,x): print("::notice title="+t+"::"+str(x).replace("%","%25").replace("\r","").replace("\n","%0A")[:3800])
           for i in range(0,len(R),8): _ann(f"smoke-{R[i][0]}-{R[min(i+7,len(R)-1)][0]}", "\n".join(f'{n} {"PASS" if o else "FAIL"} {nm} | {d}' for n,nm,o,d in R[i:i+8]))
           import glob as _g
           for f in (sorted(_g.glob("smoke/*.json"))+sorted(_g.glob("smoke/*.txt")))[:7]: _ann("json-"+os.path.basename(f), open(f).read()[:3800])
           md='| # | 항목 | 결과 | 수치 |\n|---|---|---|---|\n'+'\n'.join(f'| {n} | {nm} | {"✅ PASS" if o else "❌ FAIL"} | {d} |' for n,nm,o,d in R)+f'\n\n**{"SMOKE_OK" if ok else "SMOKE_FAIL"}**\n'
-          open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## Android 셸 스모크 6항\n'+md); print(md); sys.exit(0 if ok else 1)
+          open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## Android 셸 스모크 7항\n'+md); print(md); sys.exit(0 if ok else 1)
           PY
       - uses: actions/upload-artifact@v4
         if: always()

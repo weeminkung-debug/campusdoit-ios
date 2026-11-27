@@ -11,6 +11,13 @@ run 01_home "--es smokeTab home" 14 home
 run 02_score_gate "--es smokeTab score --es smokeAction runSim" 18 score
 run 03_my "--es smokeTab my" 13 my
 run 04_ads "--es smokeTab score --es smokeAction adsSmoke" 24 score
+# 5번방 #133: 웹 사진 입력(capture=environment)을 누르면 카메라 앱이 뜨는지 — 화면 가운데를 눌러 확인
+adb shell am force-stop $P; adb shell am start -n $A --es smokeTab home --es smokeAction camSmoke >/dev/null 2>&1; sleep 9
+WH=$(adb shell wm size | grep -o "[0-9]*x[0-9]*" | tail -1); W=${WH%x*}; H=${WH#*x}
+adb shell input tap $((W/2)) $((H/2)); sleep 5
+adb exec-out screencap -p > smoke/05_cam.png 2>/dev/null
+adb shell dumpsys activity activities 2>/dev/null | grep -E "topResumedActivity|mResumedActivity|ResumedActivity" | head -3 > smoke/cam.txt
+adb shell am force-stop $P
 
 # ---- #97 앱 자동 갱신 시험(정상 1 + 실패 4) — 5번방 #114 ----
 F=/tmp/cdu; python3 tools/cdu_fixture.py android/app/src/main/assets/public $F > smoke/cdu_fixture.txt 2>&1; PUB=$(cat $F/pub.txt)
