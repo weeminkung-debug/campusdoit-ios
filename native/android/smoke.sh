@@ -13,6 +13,7 @@ run 01_home "--es smokeTab home" 40 home
 run 02_score_gate "--es smokeTab score --es smokeAction runSim" 40 score
 run 03_my "--es smokeTab my" 36 my
 run 04_ads "--es smokeTab score --es smokeAction adsSmoke" 48 score
+adb logcat -d 2>/dev/null | grep -E "CDUADS|Ads|DynamiteModule|GmsCore|FirebaseApp" | tail -40 > smoke/ads_log.txt   # 5번방 #138: 광고 실패 원인 줄(뒤 시험이 logcat을 지우기 전에)
 # 5번방 #133: 웹 사진 입력(capture=environment)을 누르면 카메라 앱이 뜨는지 — 화면 가운데를 눌러 확인
 adb shell am force-stop $P; adb logcat -c; adb shell am start -n $A --es smokeTab home --es smokeAction camSmoke >/dev/null 2>&1
 for i in $(seq 1 40); do adb logcat -d 2>/dev/null | grep -q "CDUCAM:ready" && break; sleep 1; done; sleep 1

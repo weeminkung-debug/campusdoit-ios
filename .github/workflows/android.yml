@@ -213,7 +213,9 @@ jobs:
           except Exception: cold={}
           _cold=f" (설치 직후 첫 실행 revealAt={cold.get('revealAt')} readyAt={cold.get('readyAt')} — 기록만)"
           h=J('home'); item(1,'네이티브 탭바 표시·웹 탭 비노출', h.get('tabVisible')==True and h.get('nav')=='none' and h.get('native')==True, f"tabVisible={h.get('tabVisible')} nav={h.get('nav')} inset={h.get('inset')}")
-          item(2,'홈 진입 8s 내(revealAt, 두 번째 실행)', 0<=float(h.get('revealAt',-1))<=8, f"revealAt={h.get('revealAt')} readyAt={h.get('readyAt')}"+_cold)
+          try: late=json.load(open('smoke/late_home.json'))
+          except Exception: late={}
+          item(2,'홈 진입 8s 내(revealAt, 여러 번 실행 뒤)', 0<=float(late.get('revealAt',-1))<=8, f"late revealAt={late.get('revealAt')} readyAt={late.get('readyAt')} | 2번째 실행 revealAt={h.get('revealAt')}"+_cold)
           s=J('score'); item(3,'로그인 게이트(미로그인 결과 클릭→loginView)', s.get('view')=='loginView' and not s.get('logged'), f"view={s.get('view')} err={s.get('err')}")
           m=J('my'); item(4,'MY 탭 전환', m.get('view') in ('loginView','myView'), f"view={m.get('view')}")
           A=J('ads'); ad=(A.get('ads') or {}) if isinstance(A,dict) else {}   # 광고 시험은 smoke_ads.json에 따로 씀(점수 화면 파일 아님)
@@ -225,10 +227,13 @@ jobs:
           except Exception: ct=''
           tr=[l for l in ct.splitlines() if 'ResumedActivity' in l]; tl=(tr[0] if tr else '').lower()
           item(7,'사진 찍기 → 카메라 앱 뜸', ('camera' in tl) and ('campusdoit' not in tl), ct.strip()[:400])
+          try: _ads_log=open('smoke/ads_log.txt').read()[-3000:]
+          except Exception: _ads_log=''
           ok=all(r[2] for r in R)
           def _ann(t,x): print("::notice title="+t+"::"+str(x).replace("%","%25").replace("\r","").replace("\n","%0A")[:3800])
           for i in range(0,len(R),8): _ann(f"smoke-{R[i][0]}-{R[min(i+7,len(R)-1)][0]}", "\n".join(f'{n} {"PASS" if o else "FAIL"} {nm} | {d}' for n,nm,o,d in R[i:i+8]))
           import glob as _g
+          _ann("ads-logcat", _ads_log or "(없음)")
           for f in (sorted(_g.glob("smoke/*.json"))+sorted(_g.glob("smoke/*.txt")))[:7]: _ann("json-"+os.path.basename(f), open(f).read()[:3800])
           md='| # | 항목 | 결과 | 수치 |\n|---|---|---|---|\n'+'\n'.join(f'| {n} | {nm} | {"✅ PASS" if o else "❌ FAIL"} | {d} |' for n,nm,o,d in R)+f'\n\n**{"SMOKE_OK" if ok else "SMOKE_FAIL"}**\n'
           open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## Android 셸 스모크 7항\n'+md); print(md); sys.exit(0 if ok else 1)
