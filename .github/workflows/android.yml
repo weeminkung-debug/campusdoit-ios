@@ -8,6 +8,12 @@ on:
       regen_keystore:
         description: "신규 keystore 생성(1회) — B64·업로드 인증서 Job Summary 출력"
         default: "false"
+      api_level:
+        description: "스모크 에뮬 API(기본 35)"
+        default: "35"
+      emu_target:
+        description: "스모크 에뮬 이미지(google_apis / default)"
+        default: "google_apis"
 concurrency: { group: android, cancel-in-progress: true }
 jobs:
   build:
@@ -185,8 +191,8 @@ jobs:
         continue-on-error: true   # GitHub 러너 에뮬 부팅 불안정 — 빌드·서명(AAB·keystore) 산출을 막지 않음
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35   # 5번방 #129: targetSdk 36 → 화면이 막대 뒤까지 그려지는 Android 15+에서 시험
-          target: google_apis
+          api-level: ${{ github.event.inputs.api_level || '35' }}   # 5번방 #129: 기본 Android 15(막대 뒤 그리기). #139: 광고 원인 가리기용으로 바꿔 돌릴 수 있게
+          target: ${{ github.event.inputs.emu_target || 'google_apis' }}
           arch: x86_64
           profile: pixel_6
           disable-animations: true
