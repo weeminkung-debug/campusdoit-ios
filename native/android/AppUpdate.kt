@@ -48,9 +48,12 @@ object AppUpdate {
         root = File(ctx.filesDir, "cdu")
         currentBuild = try {
             val pi = ctx.packageManager.getPackageInfo(ctx.packageName, 0)
-            if (android.os.Build.VERSION.SDK_INT >= 28) pi.longVersionCode.toInt() else @Suppress("DEPRECATION") pi.versionCode
+            if (android.os.Build.VERSION.SDK_INT >= 28) pi.longVersionCode.toInt() else legacyVersionCode(pi)
         } catch (e: Exception) { 0 }
     }
+
+    @Suppress("DEPRECATION")
+    private fun legacyVersionCode(pi: android.content.pm.PackageInfo): Int = pi.versionCode
 
     /** Bridge 만들기 전에 부름. 반환 = 이번 실행에 쓸 폴더 경로 또는 null(넣어 둔 화면) */
     fun pickFolderAtLaunch(ctx: Context): String? {

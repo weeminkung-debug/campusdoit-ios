@@ -166,7 +166,8 @@ jobs:
           rc=$?
           if [ $rc -ne 0 ]; then
             tail -c 3500 /tmp/gradle.log | sed 's/%/%25/g' | awk 'BEGIN{printf "::error title=gradle-fail::"} {printf "%s%%0A",$0} END{print ""}'
-            grep -iE "error:|what went wrong|caused by|FAILURE:|could not" /tmp/gradle.log | head -20
+            grep -iE "^e: |error:|what went wrong|caused by|FAILURE:|could not" /tmp/gradle.log | head -40
+            grep -E "^e: " /tmp/gradle.log | head -15 | sed "s/%/%25/g; s/^/::error title=kotlin::/"
             exit $rc
           fi
           ls app/build/outputs/apk/debug/

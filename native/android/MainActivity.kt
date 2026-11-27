@@ -1,5 +1,6 @@
 package com.campusdoit.app
 
+import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import com.getcapacitor.BridgeActivity
 import com.getcapacitor.ServerPath
@@ -11,7 +12,7 @@ class MainActivity : BridgeActivity() {
         registerPlugin(AppUpdatePlugin::class.java)
         // 앱 자동 최신: Bridge가 첫 페이지를 열기 전에 이번 실행의 폴더를 정함(저장하지 않음). 어떤 오류든 넣어 둔 화면
         AppUpdate.assets = assets
-        if (BuildConfig.DEBUG) {
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {   // AGP 8은 BuildConfig를 기본으로 안 만듦 → 디버그 빌드 여부를 앱 정보로 봄
             intent?.getStringExtra("cduOrigin")?.let { AppUpdate.origin = it }
             intent?.getStringExtra("cduPub")?.let { AppUpdate.pubKey = it }
         }
