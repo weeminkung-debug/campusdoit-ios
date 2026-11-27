@@ -15,7 +15,6 @@ final class AppUpdate {
     // 목록 서명 공개 열쇠(P-256, SPKI DER base64). 비밀 열쇠는 배포 자동화의 비밀값에만 있음
     static let publicKeyB64 = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEm0NlYlpIUzs2eaDI5UgHoON7qqm0A3+Mbak+hdTa7AyQ/k7uMQlFES4HTo/8hNsE5XGWvtQ+YtpmGxpa+uFILA=="
     static let readyTimeout: TimeInterval = 10      // 갈아탄 화면이 이 안에 준비됨을 못 보내면 넣어 둔 화면으로
-    static let launchBudget: TimeInterval = 0.8     // 시작 그림(1.2초) 안에서 새 버전 받기를 기다리는 한도
 
     private let fm = FileManager.default
     private let lock = NSLock()
@@ -70,8 +69,7 @@ final class AppUpdate {
                 cleanup(keep: [])
                 return nil
             }
-            // 시작 그림 안에서만 새 버전을 기다림(못 끝내면 다음에 켤 때)
-            if !st.off { _ = checkAndDownload(timeout: AppUpdate.launchBudget); st = loadState() }
+            // 5번방 #112: 시작 때 기다리지 않음 — 지난번에 받아 검증해 둔 것만 씀, 새 것은 뒤에서 받아 다음 실행 때 적용
             guard !st.off, let v = st.ready, !st.blocked.contains(v), let dir = verifiedDir(v) else { cleanup(keep: []); return nil }
             // 1)~3) 폴더 있음 + index.html 있음 + 검증 끝 표시 있음일 때만, "시도 중"을 먼저 적고 갈아탐
             st.trying = v

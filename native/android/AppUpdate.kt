@@ -70,7 +70,7 @@ object AppUpdate {
                 if (st.ready == t) st.ready = null
                 st.trying = null; saveState(st); cleanup(emptyList()); return null
             }
-            if (!st.off) { checkAndDownload(LAUNCH_BUDGET_MS); st = loadState() }
+            // 5번방 #112: 시작 때 기다리지 않음 — 지난번에 받아 검증해 둔 것만 씀, 새 것은 뒤에서 받아 다음 실행 때 적용
             val v = st.ready
             if (st.off || v == null || st.blocked.contains(v)) { cleanup(emptyList()); return null }
             val dir = verifiedDir(v) ?: run { cleanup(emptyList()); return null }

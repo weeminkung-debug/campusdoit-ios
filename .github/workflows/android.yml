@@ -77,7 +77,26 @@ jobs:
           set -euo pipefail
           D=android/app/src/main
           mkdir -p $D/java/com/campusdoit/app $D/res/drawable $D/res/values
-          cp native/android/NativeTabsPlugin.kt native/android/CampusAdsPlugin.kt native/android/MainActivity.kt $D/java/com/campusdoit/app/
+          cp native/android/NativeTabsPlugin.kt native/android/CampusAdsPlugin.kt native/android/MainActivity.kt native/android/AppUpdate.kt $D/java/com/campusdoit/app/
+          # #97: 화면 → 기기 준비됨 신호(웹 정본에 이미 있으면 그대로) + 스플래시(보라+두잇이, W 승인 첫 화면 1안)
+          IX=$D/assets/public/index.html
+          grep -q "AppUpdate.ready" "$IX" || python3 - "$IX" <<'PY'
+          import sys; p=sys.argv[1]; s=open(p,encoding='utf-8').read()
+          tag='<script>(function(){try{var P=window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.AppUpdate;if(P)P.ready();console.log("CDUMARK:"+(window.__CDUMARK||"bundle"))}catch(e){}})()</script>'
+          s=s.replace('</body>',tag+'</body>',1) if '</body>' in s else s+tag
+          open(p,'w',encoding='utf-8').write(s)
+          PY
+          pip install -q pillow >/dev/null 2>&1 || true
+          for f in $(find $D/res -name "splash.png"); do python3 - "$f" <<'PY'
+          import sys; sys.path.insert(0,'tools'); from PIL import Image; import make_splash
+          f=sys.argv[1]; w,h=Image.open(f).size; make_splash.make(w,h,f)
+          PY
+          done
+          # #97 시험용: 기기 안 localhost(adb reverse)만 http 허용 — 그 밖은 그대로 https만
+          mkdir -p $D/res/xml; cat > $D/res/xml/network_security_config.xml <<XML
+          <?xml version="1.0" encoding="utf-8"?>
+          <network-security-config><domain-config cleartextTrafficPermitted="true"><domain includeSubdomains="false">localhost</domain></domain-config></network-security-config>
+          XML
           rm -f $D/java/com/campusdoit/app/MainActivity.java
           mk(){ cat > $D/res/drawable/$1.xml <<XML
           <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FF000000" android:pathData="$2"/></vector>
@@ -102,6 +121,7 @@ jobs:
           if 'APPLICATION_ID' not in s:
               s=re.sub(r'(<application[^>]*>)',r'\1\n        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="'+appid+'"/>',s,count=1)
           if 'AD_ID' not in s: s=s.replace('<uses-permission android:name="android.permission.INTERNET" />','<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />',1)
+          if 'networkSecurityConfig' not in s: s=s.replace('<application','<application\n        android:networkSecurityConfig="@xml/network_security_config"',1)
           if 'android:screenOrientation' not in s: s=s.replace('<activity',"<activity\n            android:screenOrientation=\"portrait\"",1)
           open(p,'w').write(s); print('manifest ok')
           PY
