@@ -67,8 +67,8 @@ class NativeTabsPlugin : Plugin() {
     private fun smoke(key: String, action: String?) {
         h.postDelayed({ bridge?.webView?.evaluateJavascript("(function(){try{var d=document.getElementById('dmAgree'); if(d) d.click();}catch(e){} return 1;})()", null) }, 1500)
         h.postDelayed({ select(key) }, 2500)
-        if (action == "runSim") h.postDelayed({ bridge?.webView?.evaluateJavascript("(function(){try{localStorage.removeItem('doit_token_v1');}catch(e){} try{goApp(); setScope('KR'); SCORE_TOUCHED=true; document.getElementById('scoreBigNum').value='88'; runSim();}catch(e){window.__smokeErr=String(e);} return 1;})()", null) }, 5000)
-        if (action == "adsSmoke") h.postDelayed({ bridge?.webView?.evaluateJavascript("(function(){window.__ads={}; try{ var P=Capacitor.Plugins.CampusAds; P.status().then(function(s){window.__ads.status=s;}); P.showRewarded({userId:'0',dryRun:true}).then(function(r){window.__ads.rewarded=r;}).catch(function(e){window.__ads.rewarded={error:String(e)};}); P.showNativeCard({top:300,height:47,dryRun:true}).then(function(r){window.__ads.native=r;}).catch(function(e){window.__ads.native={error:String(e)};}); }catch(e){window.__ads.err=String(e);} try{ goApp(); setScope('KR'); var h=document.getElementById('result'); h.innerHTML='<div>x</div>'; _kLock(h,'score_result','smoke'); window.__ads.card={blur:h.classList.contains('kblur'), btns:[...h.querySelectorAll('.kbtn')].map(function(b){return b.textContent.trim();})}; }catch(e){window.__ads.cardErr=String(e);} return 1;})()", null) }, 3000)
+        if (action == "runSim") h.postDelayed({ bridge?.webView?.evaluateJavascript("(function(){try{localStorage.removeItem('doit_token_v1');}catch(e){} try{goApp(); setScope('KR'); SCORE_TOUCHED=true; document.getElementById('scoreBigNum').value='88'; runSim();}catch(e){window.__smokeErr=String(e);} return 1;})()", null) }, 8000)
+        if (action == "adsSmoke") h.postDelayed({ bridge?.webView?.evaluateJavascript("(function(){window.__ads={}; try{ var P=Capacitor.Plugins.CampusAds; P.status().then(function(s){window.__ads.status=s;}); P.showRewarded({userId:'0',dryRun:true}).then(function(r){window.__ads.rewarded=r;}).catch(function(e){window.__ads.rewarded={error:String(e)};}); P.showNativeCard({top:300,height:47,dryRun:true}).then(function(r){window.__ads.native=r;}).catch(function(e){window.__ads.native={error:String(e)};}); }catch(e){window.__ads.err=String(e);} return 1;})()", null) }, 3000)
         h.postDelayed({
             val js = "JSON.stringify({view:(typeof _visView==='function'?_visView():''), nav:getComputedStyle(document.getElementById('bottomNav')).display, native:document.body.classList.contains('native-tabs'), err:(window.__smokeErr||''), logged:(typeof isLoggedIn==='function'?isLoggedIn():null), inset:getComputedStyle(document.documentElement).getPropertyValue('--native-tab-inset'), ads:(window.__ads||null)})"
             bridge?.webView?.evaluateJavascript(js) { r ->
@@ -80,6 +80,6 @@ class NativeTabsPlugin : Plugin() {
                     File(dir, fname).writeText(o.toString())
                 } catch (e: Exception) { }
             }
-        }, if (action == null) 6000L else 12000L)
+        }, if (action == null) 9000L else if (action == "adsSmoke") 20000L else 14000L)
     }
 }

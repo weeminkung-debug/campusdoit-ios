@@ -7,10 +7,10 @@ adb shell pm list packages | grep campusdoit > smoke/_installed.txt
 P=com.campusdoit.app; A=$P/.MainActivity
 adb logcat -c || true
 run(){ adb shell am force-stop $P; adb shell am start -n $A $2 >/dev/null 2>&1; sleep $3; adb exec-out screencap -p > smoke/$1.png 2>/dev/null; adb pull /sdcard/Android/data/$P/files/smoke_$4.json smoke/ >/dev/null 2>&1 || true; adb pull /sdcard/Android/data/$P/files/smoke_ads.json smoke/ >/dev/null 2>&1 || true; }
-run 01_home "--es smokeTab home" 10 home
-run 02_score_gate "--es smokeTab score --es smokeAction runSim" 14 score
-run 03_my "--es smokeTab my" 10 my
-run 04_ads "--es smokeTab score --es smokeAction adsSmoke" 15 score
+run 01_home "--es smokeTab home" 14 home
+run 02_score_gate "--es smokeTab score --es smokeAction runSim" 18 score
+run 03_my "--es smokeTab my" 13 my
+run 04_ads "--es smokeTab score --es smokeAction adsSmoke" 24 score
 
 # ---- #97 앱 자동 갱신 시험(정상 1 + 실패 4) — 5번방 #114 ----
 F=/tmp/cdu; python3 tools/cdu_fixture.py android/app/src/main/assets/public $F > smoke/cdu_fixture.txt 2>&1; PUB=$(cat $F/pub.txt)

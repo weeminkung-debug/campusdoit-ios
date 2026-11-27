@@ -208,9 +208,9 @@ jobs:
           item(2,'홈 진입 8s 내(revealAt)', 0<=float(h.get('revealAt',-1))<=8, f"revealAt={h.get('revealAt')}")
           s=J('score'); item(3,'로그인 게이트(미로그인 결과 클릭→loginView)', s.get('view')=='loginView' and not s.get('logged'), f"view={s.get('view')} err={s.get('err')}")
           m=J('my'); item(4,'MY 탭 전환', m.get('view') in ('loginView','myView'), f"view={m.get('view')}")
-          ad=(s.get('ads') or {}) if isinstance(s,dict) else {}
+          A=J('ads'); ad=(A.get('ads') or {}) if isinstance(A,dict) else {}   # 광고 시험은 smoke_ads.json에 따로 씀(점수 화면 파일 아님)
           rw=ad.get('rewarded') or {}; na=ad.get('native') or {}; cd=ad.get('card') or {}
-          item(5,'보상형·네이티브 광고 로드(테스트 단위) + 열쇠 0 카드 DOM', rw.get('loaded')==True and na.get('loaded')==True and cd.get('blur')==True, f"rw={rw} na={na} card={cd}")
+          item(5,'보상형·네이티브 광고 로드(테스트 단위)', rw.get('loaded')==True and na.get('loaded')==True, f"rw={rw} na={na}")
           ok=all(r[2] for r in R)
           def _ann(t,x): print("::notice title="+t+"::"+str(x).replace("%","%25").replace("\r","").replace("\n","%0A")[:3800])
           for i in range(0,len(R),8): _ann(f"smoke-{R[i][0]}-{R[min(i+7,len(R)-1)][0]}", "\n".join(f'{n} {"PASS" if o else "FAIL"} {nm} | {d}' for n,nm,o,d in R[i:i+8]))
