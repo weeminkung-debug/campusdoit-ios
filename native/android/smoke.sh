@@ -7,6 +7,8 @@ adb shell pm list packages | grep campusdoit > smoke/_installed.txt
 P=com.campusdoit.app; A=$P/.MainActivity
 adb logcat -c || true
 run(){ adb shell am force-stop $P; adb shell am start -n $A $2 >/dev/null 2>&1; sleep $3; adb exec-out screencap -p > smoke/$1.png 2>/dev/null; adb pull /sdcard/Android/data/$P/files/smoke_$4.json smoke/ >/dev/null 2>&1 || true; adb pull /sdcard/Android/data/$P/files/smoke_ads.json smoke/ >/dev/null 2>&1 || true; }
+# 5번방 #138: 설치 직후 첫 실행(웹뷰 첫 준비)은 따로 재서 기록만 — 판정은 두 번째 실행으로
+run 00_cold "--es smokeTab home" 40 home; [ -f smoke/smoke_home.json ] && mv smoke/smoke_home.json smoke/cold_home.json
 run 01_home "--es smokeTab home" 40 home
 run 02_score_gate "--es smokeTab score --es smokeAction runSim" 40 score
 run 03_my "--es smokeTab my" 36 my
@@ -54,5 +56,5 @@ for a,b,c,d in R: print(f"::notice title=cdu-android-{a}::{'PASS' if c else 'FAI
 PY
 ls -la smoke
 adb shell ls -la /sdcard/Android/data/$P/files 2>/dev/null > smoke/_filesdir.txt || true
-adb logcat -d 2>/dev/null | grep -iE "CDUADS|CDUSMOKE|FATAL|AndroidRuntime|campusdoit|MaterialComponents|BottomNavigation|NoClassDef|ClassNotFound|RuntimeException|InflateException|Capacitor|chromium" | tail -90 > smoke/logcat.txt || true
+adb logcat -d 2>/dev/null | grep -iE " Ads|Ads:|DynamiteModule|GmsCore|CDUADS|CDUSMOKE|FATAL|AndroidRuntime|campusdoit|MaterialComponents|BottomNavigation|NoClassDef|ClassNotFound|RuntimeException|InflateException|Capacitor|chromium" | tail -90 > smoke/logcat.txt || true
 exit 0

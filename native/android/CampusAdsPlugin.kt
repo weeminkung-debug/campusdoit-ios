@@ -55,7 +55,7 @@ class CampusAdsPlugin : Plugin() {
         val id = unit("ADMOB_REWARDED", TEST_REWARDED)
         activity.runOnUiThread {
             RewardedAd.load(activity, id, npaRequest(), object : RewardedAdLoadCallback() {
-                override fun onAdFailedToLoad(e: LoadAdError) { call.resolve(JSObject().put("rewarded", false).put("error", "load_failed:" + e.message)) }
+                override fun onAdFailedToLoad(e: LoadAdError) { android.util.Log.w("CDUADS", "rewarded fail $e"); call.resolve(JSObject().put("rewarded", false).put("error", "load_failed:" + e.message)) }
                 override fun onAdLoaded(ad: RewardedAd) {
                     if (dry) { call.resolve(JSObject().put("rewarded", false).put("loaded", true).put("unit", id)); return }
                     ad.setServerSideVerificationOptions(ServerSideVerificationOptions.Builder().setUserId(uid).build())
@@ -172,7 +172,7 @@ class CampusAdsPlugin : Plugin() {
                 v.headlineView = head; v.iconView = icon; v.callToActionView = cta; v.setNativeAd(ad)
                 nativeView = v
                 if (!dry) place(call); call.resolve(JSObject().put("loaded", true).put("headline", ad.headline ?: ""))
-            }.withAdListener(object : AdListener() { override fun onAdFailedToLoad(e: LoadAdError) { call.resolve(JSObject().put("loaded", false).put("error", e.message)) } }).build()
+            }.withAdListener(object : AdListener() { override fun onAdFailedToLoad(e: LoadAdError) { android.util.Log.w("CDUADS", "native fail $e"); call.resolve(JSObject().put("loaded", false).put("error", e.message)) } }).build()
             loader.loadAd(npaRequest())
         }
     }
