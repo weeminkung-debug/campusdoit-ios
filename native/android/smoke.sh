@@ -18,7 +18,7 @@ adb logcat -d 2>/dev/null | grep -E "CDUADS|Ads|DynamiteModule|GmsCore|FirebaseA
 adb shell am force-stop $P; adb logcat -c; adb shell am start -n $A --es smokeTab home --es smokeAction camSmoke >/dev/null 2>&1
 for i in $(seq 1 40); do adb logcat -d 2>/dev/null | grep -q "CDUCAM:ready" && break; sleep 1; done; sleep 1
 WH=$(adb shell wm size | grep -o "[0-9]*x[0-9]*" | tail -1); W=${WH%x*}; H=${WH#*x}
-adb shell input tap $((W/2)) $((H/2)); sleep 5
+for t in 1 2 3; do adb shell input tap $((W/2)) $((H/2)); sleep 5; adb shell dumpsys activity activities 2>/dev/null | grep -E "topResumedActivity" | grep -qi camera && break; done
 adb exec-out screencap -p > smoke/05_cam.png 2>/dev/null
 adb shell dumpsys activity activities 2>/dev/null | grep -E "topResumedActivity|mResumedActivity|ResumedActivity" | head -3 > smoke/cam.txt
 adb logcat -d 2>/dev/null | grep -E "CDUCAM|FileChooser|CDUADS" | tail -8 >> smoke/cam.txt

@@ -226,7 +226,7 @@ jobs:
           m=J('my'); item(4,'MY 탭 전환', m.get('view') in ('loginView','myView'), f"view={m.get('view')}")
           A=J('ads'); ad=(A.get('ads') or {}) if isinstance(A,dict) else {}   # 광고 시험은 smoke_ads.json에 따로 씀(점수 화면 파일 아님)
           rw=ad.get('rewarded') or {}; na=ad.get('native') or {}; cd=ad.get('card') or {}
-          item(5,'보상형·네이티브 광고 로드(테스트 단위)', rw.get('loaded')==True and na.get('loaded')==True, f"rw={rw} na={na}")
+          item(5,'보상형 광고 로드(테스트 단위)', rw.get('loaded')==True, f"rw={rw} | 네이티브(웹에서 안 부름·참고만) na={na}")   # 5번방 #139: 정본은 showRewarded·showRewardedChain만 부름, 네이티브 카드·배너는 안 부름
           sh_=int(h.get('screenH',-1)); tb=int(h.get('tabBottom',-1)); pb=int(h.get('padBottom',-1)); pt=int(h.get('padTop',-1))
           item(6,'막대 겹침 없음(상단 여백>0·탭바가 탐색 막대 위)', pt>0 and pb>0 and 0<tb<=sh_-pb+1, f"sdk={h.get('sdk')} padTop={pt} padBottom={pb} tabBottom={tb} screenH={sh_}")
           try: ct=open('smoke/cam.txt').read()
