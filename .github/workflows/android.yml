@@ -122,6 +122,8 @@ jobs:
               s=re.sub(r'(<application[^>]*>)',r'\1\n        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="'+appid+'"/>',s,count=1)
           if 'AD_ID' not in s: s=s.replace('<uses-permission android:name="android.permission.INTERNET" />','<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />',1)
           if 'networkSecurityConfig' not in s: s=s.replace('<application','<application\n        android:networkSecurityConfig="@xml/network_security_config"',1)
+          # 5번방 #136: Android 11+ 패키지 가시성 — 카메라 앱을 찾으려면 <queries> 필요(없으면 Capacitor가 사진 고르기 창으로 넘어감)
+          if 'android.media.action.IMAGE_CAPTURE' not in s: s=s.replace('<application','<queries>\n        <intent><action android:name="android.media.action.IMAGE_CAPTURE" /></intent>\n    </queries>\n    <application',1)
           if 'android:screenOrientation' not in s: s=s.replace('<activity',"<activity\n            android:screenOrientation=\"portrait\"",1)
           open(p,'w').write(s); print('manifest ok')
           PY
@@ -218,7 +220,8 @@ jobs:
           item(6,'막대 겹침 없음(상단 여백>0·탭바가 탐색 막대 위)', pt>0 and pb>0 and 0<tb<=sh_-pb+1, f"sdk={h.get('sdk')} padTop={pt} padBottom={pb} tabBottom={tb} screenH={sh_}")
           try: ct=open('smoke/cam.txt').read()
           except Exception: ct=''
-          item(7,'사진 찍기 → 카메라 앱 뜸', ('camera' in ct.lower()) and ('campusdoit' not in ct), ct.strip()[:200])
+          tr=[l for l in ct.splitlines() if 'ResumedActivity' in l]; tl=(tr[0] if tr else '').lower()
+          item(7,'사진 찍기 → 카메라 앱 뜸', ('camera' in tl) and ('campusdoit' not in tl), ct.strip()[:400])
           ok=all(r[2] for r in R)
           def _ann(t,x): print("::notice title="+t+"::"+str(x).replace("%","%25").replace("\r","").replace("\n","%0A")[:3800])
           for i in range(0,len(R),8): _ann(f"smoke-{R[i][0]}-{R[min(i+7,len(R)-1)][0]}", "\n".join(f'{n} {"PASS" if o else "FAIL"} {nm} | {d}' for n,nm,o,d in R[i:i+8]))

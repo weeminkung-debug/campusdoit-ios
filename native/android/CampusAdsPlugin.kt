@@ -40,7 +40,7 @@ class CampusAdsPlugin : Plugin() {
     private var nativeView: NativeAdView? = null
     private fun unit(key: String, fb: String): String {
         // 5번방 #131: 디버그(시험) 빌드는 늘 구글 테스트 단위 — 실제 단위는 에뮬에서 No fill·무효 트래픽 위험. 출시(release)는 그대로 실제 단위
-        if ((activity.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) return fb
+        if ((activity.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) { android.util.Log.i("CDUADS", "unit $key = $fb (debug demo)"); return fb }
         val id = activity.resources.getIdentifier(key, "string", activity.packageName)
         val v = if (id != 0) activity.getString(id) else ""
         return if (v.startsWith("ca-app-pub-") && !v.contains("__")) v else fb
