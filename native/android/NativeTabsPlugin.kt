@@ -76,6 +76,8 @@ class NativeTabsPlugin : Plugin() {
                 try {
                     var s = r ?: "\"{}\""; s = JSONObject("{\"v\":$s}").getString("v")
                     val o = JSONObject(s); o.put("revealAt", revealAt); o.put("tabVisible", nav?.visibility == android.view.View.VISIBLE)
+                    val dv = activity?.window?.decorView; val n = nav; val loc = IntArray(2); n?.getLocationOnScreen(loc)
+                    o.put("padTop", dv?.paddingTop ?: -1); o.put("padBottom", dv?.paddingBottom ?: -1); o.put("tabBottom", if (n != null) loc[1] + n.height else -1); o.put("screenH", dv?.height ?: -1); o.put("sdk", android.os.Build.VERSION.SDK_INT)
                     val dir = activity?.getExternalFilesDir(null) ?: activity?.filesDir
                     val fname = if (action == "adsSmoke") "smoke_ads.json" else "smoke_$key.json"
                     File(dir, fname).writeText(o.toString())

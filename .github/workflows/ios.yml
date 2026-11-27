@@ -53,7 +53,7 @@ jobs:
           PY
       - name: Add & sync iOS
         run: |
-          test -d ios || npx cap add ios
+          test -d ios || npx cap add ios --packagemanager CocoaPods
           npx cap sync ios
       - name: Native tab bar shell (plugin overlay) + splash assets
         run: |
@@ -73,7 +73,9 @@ jobs:
             end
             proj.save
           '
-          ruby native/App/register_plugin.rb
+          # Capacitor 8: 첫 화면은 SceneDelegate가 코드로 만듦(스토리보드 아님) → 우리 컨트롤러로 바꿈. 플러그인 등록은 컨트롤러 안에서
+          SD=ios/App/App/SceneDelegate.swift
+          if [ -f "$SD" ]; then sed -i '' 's/rootViewController = CAPBridgeViewController()/rootViewController = CduBridgeViewController()/' "$SD"; grep -c "CduBridgeViewController()" "$SD"; else ruby native/App/register_plugin.rb; fi
           # #97 앱 자동 갱신: 첫 화면 컨트롤러를 CduBridgeViewController로(웹뷰가 첫 페이지 열기 전에 검증된 폴더 고름)
           SB=ios/App/App/Base.lproj/Main.storyboard
           sed -i '' -E 's/customClass="CAPBridgeViewController" customModule="Capacitor"/customClass="CduBridgeViewController" customModuleProvider="target"/' "$SB"

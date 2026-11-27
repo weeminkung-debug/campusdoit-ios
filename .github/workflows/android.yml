@@ -26,9 +26,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with: { node-version: 22 }
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 17 }
+        with: { distribution: temurin, java-version: 21 }
       - name: Android SDK (ubuntu-latest 내장) 라이선스 수락
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"; ls "$ANDROID_HOME/cmdline-tools" || true
@@ -69,7 +69,7 @@ jobs:
           PY
       - name: Add & sync Android
         run: |
-          npm install @capacitor/android@^6.1.0 --no-save --no-audit --no-fund
+          npm install @capacitor/android@^8.0.0 --no-save --no-audit --no-fund
           test -d android || npx cap add android
           npx cap sync android
       - name: Native shell (tabs · ads plugins · icons · manifest · signing)
@@ -130,10 +130,11 @@ jobs:
           if 'play-services-ads' not in s:
               s=s.replace('dependencies {','dependencies {\n    implementation "com.google.android.material:material:1.12.0"\n    implementation "com.google.android.gms:play-services-ads:23.6.0"',1)
           if "kotlin-android" not in s and "org.jetbrains.kotlin.android" not in s:
-              s="apply plugin: 'org.jetbrains.kotlin.android'\n"+s
+              a="apply plugin: 'com.android.application'"
+              s=s.replace(a,a+"\napply plugin: 'org.jetbrains.kotlin.android'",1) if a in s else "apply plugin: 'org.jetbrains.kotlin.android'\n"+s
           open(p,'w').write(s)
           b='android/build.gradle'; t=open(b).read()
-          if 'kotlin' not in t: t=t.replace('dependencies {','dependencies {\n        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.24"',1)
+          if 'kotlin' not in t: t=t.replace('dependencies {','dependencies {\n        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:2.2.20"',1)
           open(b,'w').write(t); print('gradle ok')
           PY
           python3 - <<'PY'
@@ -156,7 +157,8 @@ jobs:
             echo "signing configured"
           else echo "no keystore secrets — unsigned/debug only"; fi
           V=$(node -p "require('./package.json').version"); VC=$(date +%y%m%d%H)
-          sed -i -E "s/versionName \"[^\"]*\"/versionName \"$V\"/; s/versionCode [0-9]+/versionCode $VC/" android/app/build.gradle
+          sed -i -E "s/versionName( =)? \"[^\"]*\"/versionName \"$V\"/; s/versionCode( =)? [0-9]+/versionCode $VC/" android/app/build.gradle
+          grep -n "targetSdk\|compileSdk\|minSdk" android/variables.gradle
           grep -n "versionName\|versionCode\|play-services-ads\|material" android/app/build.gradle | head
       - name: Build debug APK
         run: |
@@ -177,11 +179,12 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
           ls -l /dev/kvm || echo "no /dev/kvm"
-      - name: Emulator smoke (5항)
+      - name: Emulator smoke (6항)
         continue-on-error: true   # GitHub 러너 에뮬 부팅 불안정 — 빌드·서명(AAB·keystore) 산출을 막지 않음
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 33
+          api-level: 35   # 5번방 #129: targetSdk 36 → 화면이 막대 뒤까지 그려지는 Android 15+에서 시험
+          target: google_apis
           arch: x86_64
           profile: pixel_6
           disable-animations: true
@@ -211,13 +214,15 @@ jobs:
           A=J('ads'); ad=(A.get('ads') or {}) if isinstance(A,dict) else {}   # 광고 시험은 smoke_ads.json에 따로 씀(점수 화면 파일 아님)
           rw=ad.get('rewarded') or {}; na=ad.get('native') or {}; cd=ad.get('card') or {}
           item(5,'보상형·네이티브 광고 로드(테스트 단위)', rw.get('loaded')==True and na.get('loaded')==True, f"rw={rw} na={na}")
+          sh_=int(h.get('screenH',-1)); tb=int(h.get('tabBottom',-1)); pb=int(h.get('padBottom',-1)); pt=int(h.get('padTop',-1))
+          item(6,'막대 겹침 없음(상단 여백>0·탭바가 탐색 막대 위)', pt>0 and pb>0 and 0<tb<=sh_-pb+1, f"sdk={h.get('sdk')} padTop={pt} padBottom={pb} tabBottom={tb} screenH={sh_}")
           ok=all(r[2] for r in R)
           def _ann(t,x): print("::notice title="+t+"::"+str(x).replace("%","%25").replace("\r","").replace("\n","%0A")[:3800])
           for i in range(0,len(R),8): _ann(f"smoke-{R[i][0]}-{R[min(i+7,len(R)-1)][0]}", "\n".join(f'{n} {"PASS" if o else "FAIL"} {nm} | {d}' for n,nm,o,d in R[i:i+8]))
           import glob as _g
           for f in (sorted(_g.glob("smoke/*.json"))+sorted(_g.glob("smoke/*.txt")))[:7]: _ann("json-"+os.path.basename(f), open(f).read()[:3800])
           md='| # | 항목 | 결과 | 수치 |\n|---|---|---|---|\n'+'\n'.join(f'| {n} | {nm} | {"✅ PASS" if o else "❌ FAIL"} | {d} |' for n,nm,o,d in R)+f'\n\n**{"SMOKE_OK" if ok else "SMOKE_FAIL"}**\n'
-          open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## Android 셸 스모크 5항\n'+md); print(md); sys.exit(0 if ok else 1)
+          open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## Android 셸 스모크 6항\n'+md); print(md); sys.exit(0 if ok else 1)
           PY
       - uses: actions/upload-artifact@v4
         if: always()

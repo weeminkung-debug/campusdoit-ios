@@ -6,6 +6,10 @@ import Capacitor
 class CduBridgeViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(AppUpdatePlugin())
+        // Capacitor 8(5번방 #129): 새 틀은 SceneDelegate가 화면을 만들어 AppDelegate의 window가 비어 있음 → 앱 안 플러그인을 여기서 등록
+        bridge?.registerPluginInstance(NativeTabsPlugin())
+        bridge?.registerPluginInstance(CampusAdsPlugin())
+        bridge?.registerPluginInstance(DeviceKeyPlugin())
         if let dir = AppUpdate.shared.pickFolderAtLaunch() {
             bridge?.setServerBasePath(dir)   // 폴더가 없으면 Capacitor가 무시 → 넣어 둔 화면
             AppUpdate.shared.armReadyTimeout { [weak self] in

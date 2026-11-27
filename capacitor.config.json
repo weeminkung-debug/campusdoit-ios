@@ -24,6 +24,10 @@
       "iosSpinnerStyle": "small",
       "splashFullScreen": true,
       "splashImmersive": false
+    },
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "LIGHT"
     }
   }
 }
