@@ -136,7 +136,7 @@ jobs:
           python3 - <<'PY'
           p='android/app/build.gradle'; s=open(p).read()
           if 'play-services-ads' not in s:
-              s=s.replace('dependencies {','dependencies {\n    implementation "com.google.android.material:material:1.12.0"\n    implementation "com.google.android.gms:play-services-ads:23.6.0"',1)
+              s=s.replace('dependencies {','dependencies {\n    implementation "com.google.android.material:material:1.12.0"\n    implementation "com.google.android.gms:play-services-ads:25.5.0"',1)
           if "kotlin-android" not in s and "org.jetbrains.kotlin.android" not in s:
               a="apply plugin: 'com.android.application'"
               s=s.replace(a,a+"\napply plugin: 'org.jetbrains.kotlin.android'",1) if a in s else "apply plugin: 'org.jetbrains.kotlin.android'\n"+s
