@@ -26,6 +26,7 @@ class NativeTabsPlugin : Plugin() {
     private val h = Handler(Looper.getMainLooper())
     private var t0 = System.currentTimeMillis()
     private var revealAt = -1.0
+    private var programmatic = false   // 5번방 #120: 안드로이드는 selectedItemId를 코드로 바꿔도 선택 리스너가 불림 → 웹 goApp이 다시 돌아 로그인 화면을 덮음
 
     override fun load() {
         h.postDelayed({ install() }, 200)
@@ -46,7 +47,7 @@ class NativeTabsPlugin : Plugin() {
         val icons = listOf(R.drawable.ic_tab_cat, R.drawable.ic_tab_score, R.drawable.ic_tab_home, R.drawable.ic_tab_sched, R.drawable.ic_tab_my)
         keys.forEachIndexed { i, _ -> v.menu.add(0, i, i, titles[i]).setIcon(icons[i]) }
         v.selectedItemId = 2
-        v.setOnItemSelectedListener { item -> select(keys[item.itemId]); true }
+        v.setOnItemSelectedListener { item -> if (!programmatic) select(keys[item.itemId]); true }   // 웹이 탭 표시만 바꿀 때(setActive)는 화면 이동을 다시 부르지 않음
         val lp = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)); lp.gravity = Gravity.BOTTOM
         v.visibility = android.view.View.INVISIBLE
         root.addView(v, lp); nav = v
@@ -61,7 +62,7 @@ class NativeTabsPlugin : Plugin() {
     }
     private fun dp(v: Int): Int = (v * (activity?.resources?.displayMetrics?.density ?: 3f)).toInt()
     private fun select(key: String) { bridge?.webView?.evaluateJavascript("window.__nativeTab && window.__nativeTab('$key')", null) }
-    @PluginMethod fun setActive(call: PluginCall) { val k = call.getString("key") ?: ""; val i = keys.indexOf(k); h.post { if (i >= 0) nav?.selectedItemId = i }; call.resolve() }
+    @PluginMethod fun setActive(call: PluginCall) { val k = call.getString("key") ?: ""; val i = keys.indexOf(k); h.post { val n = nav; if (i >= 0 && n != null && n.selectedItemId != i) { programmatic = true; try { n.selectedItemId = i } finally { programmatic = false } } }; call.resolve() }
     @PluginMethod fun isAvailable(call: PluginCall) { call.resolve(JSObject().put("available", true)) }
 
     private fun smoke(key: String, action: String?) {
