@@ -80,7 +80,7 @@ jobs:
           grep -c 'customClass="CduBridgeViewController"' "$SB"
           # 화면 → 기기 준비됨 신호(없으면 갈아탄 화면이 10초 뒤 넣어 둔 화면으로 돌아감). 웹 정본에 이미 있으면 그대로
           IX=ios/App/App/public/index.html
-          grep -q "Plugins.AppUpdate" "$IX" || python3 - "$IX" <<'PY'
+          grep -q "CDUMARK" "$IX" || python3 - "$IX" <<'PY'
           import sys; p=sys.argv[1]; s=open(p,encoding='utf-8').read()
           tag='<script>(function(){try{var P=window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.AppUpdate;if(P)P.ready();console.log("CDUMARK:"+(window.__CDUMARK||"bundle"))}catch(e){}})()</script>'
           s=s.replace('</body>',tag+'</body>',1) if '</body>' in s else s+tag
