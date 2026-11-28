@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """앱 아이콘(확정본 '세 겹' DO/IT 라일락, W 11-23) → Android 런처 아이콘 세트. 5번방 #167
- 입력: resources/icon_fg-1024.png (투명 바탕, 글자 묶음이 적응형 안전 구역 66/108 안에 들어가게 놓임)
+ 입력: resources/icon_fg-1024.png (투명 바탕. 가운데 72/108 창이 확정 그림과 똑같게 놓임 — W 11-28 23:58 '확정한 그림대로')
  출력(<res> 아래): mipmap-*/ic_launcher_foreground.png · ic_launcher.png · ic_launcher_round.png,
                   mipmap-anydpi-v26/ic_launcher(.xml·_round.xml), values/cd_launcher_bg.xml
  iOS는 resources/AppIcon-1024.png 를 그대로 씀(ios.yml).  사용: python3 tools/make_icons.py android/app/src/main/res
