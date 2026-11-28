@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       upload:
-        description: "TestFlight 업로드(Run workflow 전용 — push 자동 실행은 스모크 16항까지만)"
+        description: "TestFlight 업로드(Run workflow 전용 — push 자동 실행은 스모크 15항까지만)"
         default: "true"
 concurrency: { group: ios-build, cancel-in-progress: true }
 jobs:
@@ -28,7 +28,6 @@ jobs:
       ADMOB_APP_ID_IOS: ${{ secrets.ADMOB_APP_ID_IOS }}
       ADMOB_REWARDED_IOS: ${{ secrets.ADMOB_REWARDED_IOS }}
       ADMOB_BANNER_IOS: ${{ secrets.ADMOB_BANNER_IOS }}
-      ADMOB_NATIVE_IOS: ${{ secrets.ADMOB_NATIVE_IOS }}
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
@@ -90,7 +89,7 @@ jobs:
           PY
           grep -c "AppUpdate.ready\|Plugins.AppUpdate" "$IX"
           grep -c "NativeTabsPlugin.swift" ios/App/App.xcodeproj/project.pbxproj; grep -c "CampusAdsPlugin.swift" ios/App/App.xcodeproj/project.pbxproj
-          grep -q "Google-Mobile-Ads-SDK" ios/App/Podfile || sed -i '' "s/^target 'App' do/target 'App' do\n  pod 'Google-Mobile-Ads-SDK', '~> 11.0'/" ios/App/Podfile
+          sed -i '' "/Google-Mobile-Ads-SDK/d" ios/App/Podfile; grep -q "Google-Mobile-Ads-SDK" ios/App/Podfile || sed -i '' "s/^target 'App' do/target 'App' do\n  pod 'Google-Mobile-Ads-SDK', '~> 12.0'/" ios/App/Podfile
           grep -n "Google-Mobile-Ads-SDK" ios/App/Podfile
           # 백로그 ④: iOS 배포 타겟 15.0 (ITMS-90068 대응) — 앱 프로젝트·Podfile 일괄
           sed -i '' -E 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/App/App.xcodeproj/project.pbxproj
@@ -117,7 +116,6 @@ jobs:
           $PB -c "Add :GADApplicationIdentifier string ${ADMOB_APP_ID_IOS:-ca-app-pub-9862619885080241~6794195905}" $P
           $PB -c "Add :ADMOB_REWARDED string ${ADMOB_REWARDED_IOS:-ca-app-pub-9862619885080241/8434580636}" $P
           $PB -c "Add :ADMOB_BANNER string ${ADMOB_BANNER_IOS:-ca-app-pub-3940256099942544/2934735716}" $P
-          $PB -c "Add :ADMOB_NATIVE string ${ADMOB_NATIVE_IOS:-ca-app-pub-3940256099942544/3986624511}" $P
           # ATT 안 띄움(5번방 #67 결정): NSUserTrackingUsageDescription 넣지 않음, 비맞춤 광고(npa=1)
           $PB -c "Add :SKAdNetworkItems array" $P
           i=0; for n in cstr6suwn9 4fzdc2evr5 2fnua5tm8w ydx93a7ass p78axxw29g v72qych5uu ludvb6z3bs cp8zw746q7 3sh42y64q3 c6k4g5qg8m s39g8k73mm 3qy4746246 hs6bdukanm mlmmfzh3r3 v4nxqhlyqp wzmmz9fp6w su67r6k2v3 yclnxrl5pm t38b2kh725 7ug5zh24hu gta9lk7p23 vutu7akeur y5ghdn5j9k v9wttpbfk9 n38lu8286q 47vhws6wlr kbd757ywx3 9t245vhmpl a2p9lx4jpn 22mmun2rn5 4468km3ulz 2u9pt9hc89 8s468mfl3y ppxm28t8ap uw77j35x4d pwa73g5rt2 578prtvx9j 4dzt52r2t5 tl55sbb4fm e5fvkxwrpn 8c4e2ghe7u 3rd42ekr43 3qcr597p9d; do $PB -c "Add :SKAdNetworkItems:$i dict" $P; $PB -c "Add :SKAdNetworkItems:$i:SKAdNetworkIdentifier string $n.skadnetwork" $P; i=$((i+1)); done
@@ -310,18 +308,17 @@ jobs:
           item(12,'네이티브 auth/check 도달(200 + available=false, test111)', okA, f'{A}')
           try: AD=json.load(open('smoke/smoke_ads.json')).get('ads') or {}
           except Exception: AD={}
-          st=AD.get('status') or {}; rw=AD.get('rewarded') or {}; na=AD.get('native') or {}; cd=AD.get('card') or {}
+          st=AD.get('status') or {}; rw=AD.get('rewarded') or {}; cd=AD.get('card') or {}
           item(13,'ATT 창 없이 상태만 기록(#67 ATT 안 띄움)', st.get('att') in ('notDetermined','authorized','denied','restricted'), f"att={st.get('att')} unit={st.get('rewardedUnit')}")
           item(14,'보상형 광고 로드(테스트 단위, dryRun)', rw.get('loaded')==True, f'{rw}')
-          item(15,'네이티브 광고 카드 로드(테스트 단위)', na.get('loaded')==True, f'{na}')
-          item(16,'코디 코칭 받기 버튼 + 광고 전 코칭 문장 0건', cd.get('st')=='ok' and cd.get('cta',0)>=1 and cd.get('cb',1)==0 and cd.get('mem') is False, f'{cd}')
+          item(15,'코디 코칭 받기 버튼 + 광고 전 코칭 문장 0건', cd.get('st')=='ok' and cd.get('cta',0)>=1 and cd.get('cb',1)==0 and cd.get('mem') is False, f'{cd}')
           ok=all(r[2] for r in R)
           def _ann(t,x): print("::notice title="+t+"::"+str(x).replace("%","%25").replace("\r","").replace("\n","%0A")[:3800])
           for i in range(0,len(R),8): _ann(f"smoke-{R[i][0]}-{R[min(i+7,len(R)-1)][0]}", "\n".join(f'{n} {"PASS" if o else "FAIL"} {nm} | {d}' for n,nm,o,d in R[i:i+8]))
           import glob as _g
           for f in (sorted(_g.glob("smoke/*.json"))+sorted(_g.glob("smoke/*.txt")))[:7]: _ann("json-"+os.path.basename(f), open(f).read()[:3800])
           md='| # | 항목 | 결과 | 수치 |\n|---|---|---|---|\n'+'\n'.join(f'| {n} | {nm} | {"✅ PASS" if o else "❌ FAIL"} | {d} |' for n,nm,o,d in R)+f'\n\n**{"SMOKE_OK" if ok else "SMOKE_FAIL"}**\n'
-          open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## iOS 셸 스모크 16항\n'+md); print(md); sys.exit(0 if ok else 1)
+          open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## iOS 셸 스모크 15항\n'+md); print(md); sys.exit(0 if ok else 1)
           PY
       - name: Import distribution certificate
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.upload != 'false' }}

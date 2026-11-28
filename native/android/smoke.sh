@@ -24,8 +24,8 @@ adb shell dumpsys activity activities 2>/dev/null | grep -E "topResumedActivity|
 adb logcat -d 2>/dev/null | grep -E "CDUCAM|FileChooser|CDUADS" | tail -8 >> smoke/cam.txt
 adb shell am force-stop $P
 
-# 5번방 #138: 설치 직후 수 분은 에뮬이 뒤에서 앱을 최적화해 느림 → 홈 진입은 여러 번 실행 뒤 한 번 더 재서 판정
-run 06_home_late "--es smokeTab home" 30 home; [ -f smoke/smoke_home.json ] && cp smoke/smoke_home.json smoke/late_home.json
+# 5번방 #138·#141: 설치 직후 첫 실행은 기록만, 홈 진입은 그 뒤 따뜻한 실행 3번의 가운데 값
+for n in 1 2 3; do run 06_home_late$n "--es smokeTab home" 30 home; [ -f smoke/smoke_home.json ] && cp smoke/smoke_home.json smoke/late_home$n.json; done   # 5번방 #141: 따뜻한 실행 3번 → 가운데 값으로 판정
 
 # ---- #97 앱 자동 갱신 시험(정상 1 + 실패 4) — 5번방 #114 ----
 F=/tmp/cdu; python3 tools/cdu_fixture.py android/app/src/main/assets/public $F > smoke/cdu_fixture.txt 2>&1; PUB=$(cat $F/pub.txt)

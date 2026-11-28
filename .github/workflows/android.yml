@@ -24,7 +24,6 @@ jobs:
       ADMOB_APP_ID_ANDROID: ${{ secrets.ADMOB_APP_ID_ANDROID }}
       ADMOB_REWARDED_ANDROID: ${{ secrets.ADMOB_REWARDED_ANDROID }}
       ADMOB_BANNER_ANDROID: ${{ secrets.ADMOB_BANNER_ANDROID }}
-      ADMOB_NATIVE_ANDROID: ${{ secrets.ADMOB_NATIVE_ANDROID }}
       ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -117,7 +116,6 @@ jobs:
           <resources>
             <string name="ADMOB_REWARDED">${ADMOB_REWARDED_ANDROID:-ca-app-pub-9862619885080241/6005694581}</string>
             <string name="ADMOB_BANNER">${ADMOB_BANNER_ANDROID:-ca-app-pub-3940256099942544/9214589741}</string>
-            <string name="ADMOB_NATIVE">${ADMOB_NATIVE_ANDROID:-ca-app-pub-3940256099942544/2247696110}</string>
           </resources>
           XML
           APPID="${ADMOB_APP_ID_ANDROID:-ca-app-pub-9862619885080241~2156176384}"
@@ -219,14 +217,17 @@ jobs:
           except Exception: cold={}
           _cold=f" (설치 직후 첫 실행 revealAt={cold.get('revealAt')} readyAt={cold.get('readyAt')} — 기록만)"
           h=J('home'); item(1,'네이티브 탭바 표시·웹 탭 비노출', h.get('tabVisible')==True and h.get('nav')=='none' and h.get('native')==True, f"tabVisible={h.get('tabVisible')} nav={h.get('nav')} inset={h.get('inset')}")
-          try: late=json.load(open('smoke/late_home.json'))
-          except Exception: late={}
-          item(2,'홈 진입 8s 내(revealAt, 여러 번 실행 뒤)', 0<=float(late.get('revealAt',-1))<=8, f"late revealAt={late.get('revealAt')} readyAt={late.get('readyAt')} | 2번째 실행 revealAt={h.get('revealAt')}"+_cold)
+          lv=[]
+          for n in (1,2,3):
+              try: lv.append(float(json.load(open(f'smoke/late_home{n}.json')).get('revealAt',-1)))
+              except Exception: lv.append(-1.0)
+          med=sorted(lv)[1]
+          item(2,'홈 진입 8s 내(따뜻한 실행 3번 가운데 값)', all(v>=0 for v in lv) and med<=8, f"가운데 {med} | 3번 {lv}"+_cold)   # 5번방 #141
           s=J('score'); item(3,'로그인 게이트(미로그인 결과 클릭→loginView)', s.get('view')=='loginView' and not s.get('logged'), f"view={s.get('view')} err={s.get('err')}")
           m=J('my'); item(4,'MY 탭 전환', m.get('view') in ('loginView','myView'), f"view={m.get('view')}")
           A=J('ads'); ad=(A.get('ads') or {}) if isinstance(A,dict) else {}   # 광고 시험은 smoke_ads.json에 따로 씀(점수 화면 파일 아님)
-          rw=ad.get('rewarded') or {}; na=ad.get('native') or {}; cd=ad.get('card') or {}
-          item(5,'보상형 광고 로드(테스트 단위)', rw.get('loaded')==True, f"rw={rw} | 네이티브(웹에서 안 부름·참고만) na={na}")   # 5번방 #139: 정본은 showRewarded·showRewardedChain만 부름, 네이티브 카드·배너는 안 부름
+          rw=ad.get('rewarded') or {}; cd=ad.get('card') or {}
+          item(5,'보상형 광고 로드(테스트 단위)', rw.get('loaded')==True, f"rw={rw}")   # 5번방 #141: 광고는 보상형만(공지 6). 네이티브 광고 코드는 셸에서 뺌
           sh_=int(h.get('screenH',-1)); tb=int(h.get('tabBottom',-1)); pb=int(h.get('padBottom',-1)); pt=int(h.get('padTop',-1))
           item(6,'막대 겹침 없음(상단 여백>0·탭바가 탐색 막대 위)', pt>0 and pb>0 and 0<tb<=sh_-pb+1, f"sdk={h.get('sdk')} padTop={pt} padBottom={pb} tabBottom={tb} screenH={sh_}")
           try: ct=open('smoke/cam.txt').read()

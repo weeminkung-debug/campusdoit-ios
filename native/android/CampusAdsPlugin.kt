@@ -18,8 +18,6 @@ import com.google.ads.mediation.admob.AdMobAdapter
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import com.google.android.gms.ads.nativead.NativeAd
-import com.google.android.gms.ads.nativead.NativeAdView
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.google.android.gms.ads.rewarded.ServerSideVerificationOptions
@@ -32,12 +30,9 @@ class CampusAdsPlugin : Plugin() {
         fun npaRequest(): AdRequest = AdRequest.Builder().addNetworkExtrasBundle(AdMobAdapter::class.java, Bundle().apply { putString("npa", "1") }).build()
         const val TEST_REWARDED = "ca-app-pub-3940256099942544/5224354917"
         const val TEST_BANNER = "ca-app-pub-3940256099942544/9214589741"
-        const val TEST_NATIVE = "ca-app-pub-3940256099942544/2247696110"
     }
     private var inited = false
     private var banner: AdView? = null
-    private var nativeAd: NativeAd? = null
-    private var nativeView: NativeAdView? = null
     private fun unit(key: String, fb: String): String {
         // 5번방 #131: 디버그(시험) 빌드는 늘 구글 테스트 단위 — 실제 단위는 에뮬에서 No fill·무효 트래픽 위험. 출시(release)는 그대로 실제 단위
         if ((activity.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) { android.util.Log.i("CDUADS", "unit $key = $fb (debug demo)"); return fb }
@@ -156,34 +151,5 @@ class CampusAdsPlugin : Plugin() {
     }
     @PluginMethod fun hideBanner(call: PluginCall) { activity.runOnUiThread { banner?.visibility = View.GONE; call.resolve() } }
 
-    @PluginMethod fun showNativeCard(call: PluginCall) {
-        ensureInit(); val dry = call.getBoolean("dryRun") ?: false
-        activity.runOnUiThread {
-            if (nativeAd != null) { if (!dry) place(call); call.resolve(JSObject().put("loaded", true)); return@runOnUiThread }
-            val loader = AdLoader.Builder(activity, unit("ADMOB_NATIVE", TEST_NATIVE)).forNativeAd { ad ->
-                nativeAd = ad
-                val v = NativeAdView(activity); v.setBackgroundColor(Color.parseColor("#EEF0F4"))
-                val row = LinearLayout(activity); row.orientation = LinearLayout.HORIZONTAL; row.gravity = Gravity.CENTER_VERTICAL; row.setPadding(dp(8.0), 0, dp(10.0), 0)
-                val tag = TextView(activity); tag.text = "AD"; tag.textSize = 11f; tag.setTextColor(Color.parseColor("#8A8A8A")); tag.setPadding(dp(5.0), dp(1.0), dp(5.0), dp(1.0))
-                val icon = ImageView(activity); icon.setImageDrawable(ad.icon?.drawable); icon.layoutParams = LinearLayout.LayoutParams(dp(22.0), dp(22.0)).apply { marginStart = dp(8.0) }
-                val head = TextView(activity); head.text = ad.headline; head.textSize = 15f; head.setTextColor(Color.parseColor("#1C1C1E")); head.maxLines = 1; head.ellipsize = android.text.TextUtils.TruncateAt.END; head.setTypeface(null, android.graphics.Typeface.BOLD); head.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(8.0) }
-                val cta = TextView(activity); cta.text = "›"; cta.textSize = 16f; cta.setTextColor(Color.parseColor("#2B5BC4"))
-                row.addView(tag); row.addView(icon); row.addView(head); row.addView(cta); v.addView(row, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-                v.headlineView = head; v.iconView = icon; v.callToActionView = cta; v.setNativeAd(ad)
-                nativeView = v
-                if (!dry) place(call); call.resolve(JSObject().put("loaded", true).put("headline", ad.headline ?: ""))
-            }.withAdListener(object : AdListener() { override fun onAdFailedToLoad(e: LoadAdError) { android.util.Log.w("CDUADS", "native fail $e"); call.resolve(JSObject().put("loaded", false).put("error", e.message)) } }).build()
-            loader.loadAd(npaRequest())
-        }
-    }
-    private fun place(call: PluginCall) {
-        val v = nativeView ?: return; val root = activity.findViewById<ViewGroup>(android.R.id.content)
-        if (v.parent == null) root.addView(v)
-        val top = call.getDouble("top") ?: 0.0; val h = call.getDouble("height") ?: 47.0; val left = call.getDouble("left") ?: 16.0; val w = call.getDouble("width") ?: 328.0
-        val lp = FrameLayout.LayoutParams(dp(w), dp(h)); lp.leftMargin = dp(left); lp.topMargin = dp(top); v.layoutParams = lp
-        v.visibility = if (top + h < 0 || dp(top) > root.height) View.INVISIBLE else View.VISIBLE
-    }
-    @PluginMethod fun positionNativeCard(call: PluginCall) { activity.runOnUiThread { place(call); call.resolve() } }
-    @PluginMethod fun hideNativeCard(call: PluginCall) { activity.runOnUiThread { nativeView?.visibility = View.GONE; call.resolve() } }
     @PluginMethod fun status(call: PluginCall) { call.resolve(JSObject().put("att", "n/a").put("rewardedUnit", unit("ADMOB_REWARDED", TEST_REWARDED)).put("test", unit("ADMOB_REWARDED", "") == "").put("chain", true).put("ready", pool.size)) }
 }
