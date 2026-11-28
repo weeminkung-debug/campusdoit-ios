@@ -44,6 +44,19 @@ cdu(){ # $1=이름 $2=목록 폴더(없으면 서버 안 켬) $3=drop
   printf '{"name":"%s","mark":"%s","state":%s,"dirs":"%s"}\n' "$1" "$M" "${ST:-null}" "$DS" > smoke/cdu_$1.json
   adb shell am force-stop $P; [ -n "$SP" ] && kill $SP 2>/dev/null; }
 cdu ok srv_good; cdu badsig srv_badsig; cdu badhash srv_badhash; cdu drop srv_good drop; cdu closed ""
+# ---- 5번방 #162: 실서버(campusdoit.com) 대상 1항 — 내장 주소·내장 공개 키 그대로, 가짜 서버 안 씀 ----
+adb uninstall $P >/dev/null 2>&1; adb install -r $APK >/dev/null 2>&1
+adb logcat -c; adb shell am start -n $A >/dev/null 2>&1
+for i in $(seq 1 30); do sleep 3; adb shell run-as $P cat files/cdu/cdu_state.json 2>/dev/null | grep -q '"ready":"[^"]' && break; done
+adb shell am force-stop $P; adb logcat -c; adb shell am start -n $A >/dev/null 2>&1; sleep 16
+adb exec-out screencap -p > smoke/cdu_live.png 2>/dev/null
+LST=$(adb shell run-as $P cat files/cdu/cdu_state.json 2>/dev/null | tr -d '\r\n')
+LDS=$(adb shell run-as $P ls files/cdu 2>/dev/null | tr '\r\n' '  ')
+LSW=$(adb shell run-as $P sh -c 'cat files/cdu/*/sw.js' 2>/dev/null | grep -o 'VERSION = "[^"]*"' | head -1 | sed 's/.*"\(.*\)"/\1/')
+LMK=$(adb logcat -d 2>/dev/null | grep -o "CDUMARK:[a-z0-9]*" | tail -1)
+LER=$(adb logcat -d 2>/dev/null | grep -iE "AppUpdate|cdu" | grep -iE "fail|error|exception|sig|sha" | tail -1 | cut -c1-200 | tr -d '"\\')
+printf '{"name":"live","state":%s,"dirs":"%s","sw":"%s","mark":"%s","err":"%s"}\n' "${LST:-null}" "$LDS" "$LSW" "$LMK" "$LER" > smoke/cdu_live.json
+adb shell am force-stop $P
 python3 - <<'PY'
 import json,os
 R=[]
@@ -53,6 +66,7 @@ def J(n):
 o=J('ok'); R.append(('C1','정상: 두 번째 실행에 새 버전(v2)',o.get('mark')=='CDUMARK:v2',o))
 for k,nm in [('badsig','갱신 실패(서명 틀림)'),('badhash','갱신 실패(sha256 틀림)'),('drop','받다 끊김'),('closed','서버 안 열림')]:
     j=J(k); st=j.get('state') or {}; R.append(('C-'+k,nm+': 넣어 둔 화면',j.get('mark')=='CDUMARK:bundle' and not st.get('ready'),j))
+l=J('live'); ls=l.get('state') or {}; R.append(('C-live','실서버: 받아서 다음 실행에 새 화면(sw '+str(l.get('sw'))+')', bool(ls.get('ready')) and not ls.get('trying') and str(ls.get('ready')) in str(l.get('dirs')) and bool(l.get('sw')) and l.get('mark')!='CDUMARK:bundle', l))
 ok=all(r[2] for r in R)
 md='| # | 항목 | 결과 | 상태 |\n|---|---|---|---|\n'+'\n'.join(f'| {a} | {b} | {"✅ PASS" if c else "❌ FAIL"} | {json.dumps(d,ensure_ascii=False)[:300]} |' for a,b,c,d in R)+f'\n\n**{"CDU_OK" if ok else "CDU_FAIL"}**\n'
 open(os.environ.get('GITHUB_STEP_SUMMARY','/dev/stdout'),'a').write('## #97 앱 자동 갱신 시험(Android)\n'+md)
