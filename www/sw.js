@@ -1,13 +1,13 @@
 /* 캠퍼스두잇 sw.js — 네트워크 우선 · 즉시 교체
    버전은 아래 VERSION 상수가 유일한 기준(주석에 버전 기재 금지 — 불일치 방지).
    배포 때마다 VERSION을 UI 빌드번호에 맞춰 올리면 됨. */
-const VERSION = "b593b";
+const VERSION = "b593c";
 const CACHE = "doit-" + VERSION;
 
 /* 설치 즉시 대기 없이 활성화 */
 const PRECACHE = ["appdata.json", "offline.html", "cat_conv.png","cat_min.png","cat_dict.png","cat_hub.png","cat_tuition.png","cat_fee.png","cat_past.png?v=2"];   /* [b592g] 카테고리 아이콘 프리캐시(즉시 표시) */   /* 애플심사 09.11: 오프라인 폴백 셸 */   /* W 09.03: 평면 배포 */   /* [b581 ⓐ] 분할 데이터 프리캐시 (오프라인·TWA 첫 로드) */
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).catch(() => {}));
+  e.waitUntil(caches.open(CACHE).then((c) => { c.add("pretendard_kr.woff2?v=1").catch(() => {});   /* 글씨는 따로: 못 받아도 나머지 미리 담기는 그대로(검수5 #150) */ return c.addAll(PRECACHE); }).catch(() => {}));
   self.skipWaiting();
 });
 

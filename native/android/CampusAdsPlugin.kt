@@ -29,10 +29,8 @@ class CampusAdsPlugin : Plugin() {
         // 비맞춤 광고만(5번방 #67): npa=1
         fun npaRequest(): AdRequest = AdRequest.Builder().addNetworkExtrasBundle(AdMobAdapter::class.java, Bundle().apply { putString("npa", "1") }).build()
         const val TEST_REWARDED = "ca-app-pub-3940256099942544/5224354917"
-        const val TEST_BANNER = "ca-app-pub-3940256099942544/9214589741"
     }
     private var inited = false
-    private var banner: AdView? = null
     private fun unit(key: String, fb: String): String {
         // 5번방 #131: 디버그(시험) 빌드는 늘 구글 테스트 단위 — 실제 단위는 에뮬에서 No fill·무효 트래픽 위험. 출시(release)는 그대로 실제 단위
         if ((activity.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) { android.util.Log.i("CDUADS", "unit $key = $fb (debug demo)"); return fb }
@@ -134,22 +132,5 @@ class CampusAdsPlugin : Plugin() {
         val c = chainCall ?: return; chainCall = null
         val r = JSObject().put("rewarded", chainDone).put("ms", System.currentTimeMillis() - chainT0); if (err != null) r.put("error", err); c.resolve(r)
     }
-    @PluginMethod fun showBanner(call: PluginCall) {
-        ensureInit()
-        activity.runOnUiThread {
-            val root = activity.findViewById<ViewGroup>(android.R.id.content)
-            if (banner == null) {
-                val b = AdView(activity); b.adUnitId = unit("ADMOB_BANNER", TEST_BANNER)
-                val wdp = (root.width / activity.resources.displayMetrics.density).toInt()
-                b.setAdSize(AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(activity, if (wdp > 0) wdp else 360))
-                val lp = FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT); lp.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL; lp.bottomMargin = dp(56.0)
-                root.addView(b, lp); b.loadAd(npaRequest()); banner = b
-            }
-            banner?.visibility = View.VISIBLE
-            call.resolve(JSObject().put("height", 50))
-        }
-    }
-    @PluginMethod fun hideBanner(call: PluginCall) { activity.runOnUiThread { banner?.visibility = View.GONE; call.resolve() } }
-
     @PluginMethod fun status(call: PluginCall) { call.resolve(JSObject().put("att", "n/a").put("rewardedUnit", unit("ADMOB_REWARDED", TEST_REWARDED)).put("test", unit("ADMOB_REWARDED", "") == "").put("chain", true).put("ready", pool.size)) }
 }

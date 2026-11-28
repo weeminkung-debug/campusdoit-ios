@@ -23,7 +23,6 @@ jobs:
       APP_HDR_SECRET: ${{ secrets.APP_HDR_SECRET }}
       ADMOB_APP_ID_ANDROID: ${{ secrets.ADMOB_APP_ID_ANDROID }}
       ADMOB_REWARDED_ANDROID: ${{ secrets.ADMOB_REWARDED_ANDROID }}
-      ADMOB_BANNER_ANDROID: ${{ secrets.ADMOB_BANNER_ANDROID }}
       ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -102,6 +101,8 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <network-security-config><domain-config cleartextTrafficPermitted="true"><domain includeSubdomains="false">localhost</domain></domain-config></network-security-config>
           XML
+          # 5번방 #167: 앱 아이콘 = 확정본 '세 겹' DO/IT 라일락(적응형 앞·뒤 판 + 둥근 판 + 옛 기기용)
+          python3 tools/make_icons.py $D/res
           rm -f $D/java/com/campusdoit/app/MainActivity.java
           mk(){ cat > $D/res/drawable/$1.xml <<XML
           <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FF000000" android:pathData="$2"/></vector>
@@ -115,7 +116,6 @@ jobs:
           cat > $D/res/values/ads.xml <<XML
           <resources>
             <string name="ADMOB_REWARDED">${ADMOB_REWARDED_ANDROID:-ca-app-pub-9862619885080241/6005694581}</string>
-            <string name="ADMOB_BANNER">${ADMOB_BANNER_ANDROID:-ca-app-pub-3940256099942544/9214589741}</string>
           </resources>
           XML
           APPID="${ADMOB_APP_ID_ANDROID:-ca-app-pub-9862619885080241~2156176384}"
@@ -128,6 +128,9 @@ jobs:
           if 'networkSecurityConfig' not in s: s=s.replace('<application','<application\n        android:networkSecurityConfig="@xml/network_security_config"',1)
           # 5번방 #136: Android 11+ 패키지 가시성 — 카메라 앱을 찾으려면 <queries> 필요(없으면 Capacitor가 사진 고르기 창으로 넘어감)
           if 'android.media.action.IMAGE_CAPTURE' not in s: s=s.replace('<application','<queries>\n        <intent><action android:name="android.media.action.IMAGE_CAPTURE" /></intent>\n    </queries>\n    <application',1)
+          # 5번방 #156·#167: 카메라 없는 기기도 설치되게(사진 찍기는 있으면 쓰는 것) — 필수 아님으로 밝힘
+          for ft in ('android.hardware.camera','android.hardware.camera.autofocus'):
+              if ('"'+ft+'"') not in s: s=s.replace('<application','<uses-feature android:name="'+ft+'" android:required="false" />\n    <application',1)
           if 'android:screenOrientation' not in s: s=s.replace('<activity',"<activity\n            android:screenOrientation=\"portrait\"",1)
           open(p,'w').write(s); print('manifest ok')
           PY

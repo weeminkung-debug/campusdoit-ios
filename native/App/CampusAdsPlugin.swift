@@ -7,9 +7,9 @@ import WebKit
 
 // Google Mobile Ads SDK v12(5번방 #141: v11은 Deprecated) — Swift 이름은 GAD 접두 없음
 // 캠퍼스두잇 광고 플러그인(iOS) — 보상형(rewarded, 버튼 탭 직후만) · 적응형 배너 
-// 단위 ID: Info.plist ADMOB_REWARDED / ADMOB_BANNER (빌드 시 Secrets 주입, 없으면 구글 테스트 단위)
+// 단위 ID: Info.plist ADMOB_REWARDED (빌드 시 Secrets 주입, 없으면 구글 테스트 단위). 배너 광고는 쓰지 않음(5번방 #156·#167)
 @objc(CampusAdsPlugin)
-public class CampusAdsPlugin: CAPPlugin, CAPBridgedPlugin, FullScreenContentDelegate, BannerViewDelegate {
+public class CampusAdsPlugin: CAPPlugin, CAPBridgedPlugin, FullScreenContentDelegate {
     public let identifier = "CampusAdsPlugin"
     public let jsName = "CampusAds"
     public let pluginMethods: [CAPPluginMethod] = [
@@ -17,14 +17,11 @@ public class CampusAdsPlugin: CAPPlugin, CAPBridgedPlugin, FullScreenContentDele
         CAPPluginMethod(name: "showRewarded", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "preloadRewarded", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "showRewardedChain", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "showBanner", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "hideBanner", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise)
     ]
     // 비맞춤 광고만(ATT 안 띄움 · 5번방 #67): npa=1
     static func npaRequest() -> Request { let r = Request(); let x = Extras(); x.additionalParameters = ["npa": "1"]; r.register(x); return r }
     static let TEST_REWARDED = "ca-app-pub-3940256099942544/1712485313"
-    static let TEST_BANNER   = "ca-app-pub-3940256099942544/2934735716"
     private var rewarded: RewardedAd?
     private var rewardedCall: CAPPluginCall?
     private var earned = false
@@ -39,7 +36,6 @@ public class CampusAdsPlugin: CAPPlugin, CAPBridgedPlugin, FullScreenContentDele
     private var chainUid = ""
     private var chainT0 = Date()
     private var chainTries = 0
-    private var banner: BannerView?
     private var initialized = false
 
     private func unit(_ key: String, _ fallback: String) -> String {
@@ -150,30 +146,8 @@ public class CampusAdsPlugin: CAPPlugin, CAPBridgedPlugin, FullScreenContentDele
         finishRewarded(false, "present_failed:\(error.localizedDescription)")
     }
 
-    // 적응형 배너: 하단 탭바 위
-    @objc func showBanner(_ call: CAPPluginCall) {
-        ensureInit()
-        DispatchQueue.main.async {
-            guard let vc = self.root(), let host = vc.view.window ?? vc.view else { call.reject("no_view"); return }
-            if self.banner == nil {
-                let width = host.bounds.width
-                let b = BannerView(adSize: currentOrientationAnchoredAdaptiveBanner(width: width))
-                b.adUnitID = self.unit("ADMOB_BANNER", CampusAdsPlugin.TEST_BANNER); b.rootViewController = vc; b.delegate = self
-                b.translatesAutoresizingMaskIntoConstraints = false; host.addSubview(b)
-                let bottomInset = CGFloat(call.getInt("bottomInset") ?? 0)
-                NSLayoutConstraint.activate([b.centerXAnchor.constraint(equalTo: host.centerXAnchor), b.bottomAnchor.constraint(equalTo: host.safeAreaLayoutGuide.bottomAnchor, constant: -bottomInset)])
-                self.banner = b; b.load(CampusAdsPlugin.npaRequest())
-            }
-            self.banner?.isHidden = false
-            call.resolve(["height": Double(self.banner?.adSize.size.height ?? 0)])
-        }
-    }
-    @objc func hideBanner(_ call: CAPPluginCall) { DispatchQueue.main.async { self.banner?.isHidden = true; call.resolve() } }
-
     @objc func status(_ call: CAPPluginCall) {
         var att = "n/a"; if #available(iOS 14, *) { att = ["notDetermined","restricted","denied","authorized"][Int(ATTrackingManager.trackingAuthorizationStatus.rawValue)] }
         call.resolve(["att": att, "rewardedUnit": unit("ADMOB_REWARDED", CampusAdsPlugin.TEST_REWARDED), "test": unit("ADMOB_REWARDED", "") == "", "chain": true, "ready": pool.count ])
     }
-    public func bannerView(_ bannerView: BannerView, didFailToReceiveAdWithError error: Error) { bannerView.isHidden = true }
-    public func bannerViewDidReceiveAd(_ bannerView: BannerView) { bannerView.isHidden = false }
 }

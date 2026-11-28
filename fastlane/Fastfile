@@ -39,8 +39,8 @@ platform :ios do
       profile_name: profile_name
     )
 
-    # 마케팅 버전(App Store 표시 버전) — 5번방 #127: 1.0.2
-    app_ver = ENV["APP_VERSION"] || "1.0.2"
+    # 마케팅 버전(App Store 표시 버전) — 5번방 #167: 1.0.3
+    app_ver = ENV["APP_VERSION"] || "1.0.3"
     pbx = "#{IOS_DIR}/App.xcodeproj/project.pbxproj"
     File.write(pbx, File.read(pbx).gsub(/MARKETING_VERSION = [^;]+;/, "MARKETING_VERSION = #{app_ver};"))
     UI.message("MARKETING_VERSION = #{app_ver}")
